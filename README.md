@@ -54,12 +54,22 @@ npm run dev -- --host 127.0.0.1
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173). Thicket creates both
 SQLite databases and the neutral starter codebook automatically.
 
-To store the databases elsewhere:
+## Open or create a workspace
 
-```bash
-export THICKET_CORPUS_DB=/absolute/path/to/corpus.db
-export THICKET_LABELS_DB=/absolute/path/to/labels.db
-```
+Choose **Workspace** in the lower-right corner before or during a coding
+session. The workspace manager:
+
+- shows the active corpus and labels paths plus item counts;
+- suggests database files found beside the app and current workspace;
+- opens an existing `corpus.db` and its matching `labels.db`;
+- creates a new database pair when **Create missing database files** is on;
+- validates both files before switching;
+- remembers the selection for the next launch.
+
+The corpus contains source threads and replies. The labels database contains
+coder identities, custom codebooks, labels, passes, and completion. Switching
+workspaces clears the visible session so labels from one project cannot be
+accidentally applied to another. It never moves, uploads, or deletes files.
 
 ## How coding works
 
@@ -74,8 +84,8 @@ export THICKET_LABELS_DB=/absolute/path/to/labels.db
    separate from labels, so a thread can be unmarked without losing coding.
 
 Every label records the item, code, coder, pass, and timestamp. Changes save
-immediately to `data/labels.db`. Multiple codes may be applied to the same
-reply.
+immediately to the active labels database. Multiple codes may be applied to
+the same reply.
 
 Codes that have already been used cannot be deleted, which prevents a codebook
 edit from silently destroying labels. Custom codebooks containing used codes
@@ -125,12 +135,13 @@ In reply coding:
 
 Choose **Import threads**, enter a subreddit and query, choose 1–100 results,
 and decide whether to fetch complete reply trees. No Reddit API credentials are
-needed. Imported content is written only to `data/corpus.db`.
+needed. Imported content is written only to the active corpus database.
 
 ## Backups and production build
 
-Stop active coding before copying the labels database. With SQLite WAL mode,
-back up these files together when present:
+Stop active coding before copying the active labels database. With SQLite WAL
+mode, back up the database and its adjacent WAL/SHM files together when
+present:
 
 ```text
 data/labels.db
@@ -151,7 +162,7 @@ the frontend's default origin.
 ## Troubleshooting
 
 - Empty queue: clear restrictive filters and confirm the corpus database has
-  imported items.
+  imported items. Choose **Workspace** to confirm the active corpus and count.
 - Missing reply tree: import with complete reply hydration enabled.
 - Empty palette: open **Manage codes**, select a codebook, and add a code.
 - Import failure: verify the subreddit/query and retry with a smaller limit.

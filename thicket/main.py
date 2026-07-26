@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from thicket import corpus, db
 from thicket.config import Settings
-from thicket.routers import export, imports, items, labels, reliability
+from thicket.routers import export, imports, items, labels, reliability, workspace
 from thicket.seed_default import seed_default
 
 
@@ -32,7 +32,7 @@ app = FastAPI(title="Thicket", lifespan=lifespan)
 # separate-origin development server (for example localhost:5173).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -42,6 +42,7 @@ app.include_router(labels.router)
 app.include_router(reliability.router)
 app.include_router(export.router)
 app.include_router(imports.router)
+app.include_router(workspace.router)
 
 
 @app.get("/health")
