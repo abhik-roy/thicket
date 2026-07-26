@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+data/
+output/
+exports/
+config.yaml
+*.log
+docs/superpowers/
+.superpowers/
+scratch/
+scratch_tmp/
+run.log
+.superpowers/brainstorm/
