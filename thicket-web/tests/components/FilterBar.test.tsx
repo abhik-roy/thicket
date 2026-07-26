@@ -7,6 +7,10 @@ import { FilterBar, type FilterBarProps } from '../../src/components/FilterBar'
 function renderFilterBar(overrides: Partial<FilterBarProps> = {}) {
   const props: FilterBarProps = {
     subreddit: '', onSubredditChange: vi.fn(),
+    communities: [
+      { name: 'ExperiencedDevs', thread_count: 36 },
+      { name: 'programming', thread_count: 8 },
+    ],
     year: '', onYearChange: vi.fn(),
     minComments: 0, onMinCommentsChange: vi.fn(),
     uncodedOnly: false, onUncodedOnlyChange: vi.fn(),
@@ -22,8 +26,11 @@ function renderFilterBar(overrides: Partial<FilterBarProps> = {}) {
 describe('FilterBar', () => {
   it('reports subreddit changes', async () => {
     const props = renderFilterBar()
-    await userEvent.type(screen.getByRole('textbox', { name: 'Subreddit' }), 'x')
-    expect(props.onSubredditChange).toHaveBeenCalled()
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: 'Subreddit' }),
+      'ExperiencedDevs',
+    )
+    expect(props.onSubredditChange).toHaveBeenCalledWith('ExperiencedDevs')
   })
 
   it('reports the uncoded-only checkbox toggling', async () => {

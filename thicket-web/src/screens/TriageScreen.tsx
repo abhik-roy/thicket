@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useUnmarkThreadDone } from '../api/comments'
-import { useAssignmentStatus, type Thread } from '../api/threads'
+import { useAssignmentStatus, useCommunities, type Thread } from '../api/threads'
 import { FilterBar } from '../components/FilterBar'
 import { TriageGrid } from '../components/TriageGrid'
 import { ThreadModal } from '../components/ThreadModal'
@@ -32,6 +32,7 @@ export function TriageScreen({
   const assignmentStatusQuery = useAssignmentStatus(
     coderId, passNo, openThread ? [openThread.id] : [])
   const unmarkDone = useUnmarkThreadDone()
+  const communitiesQuery = useCommunities()
 
   return (
     <main className="app-shell flex h-screen flex-col p-3 sm:p-5">
@@ -72,6 +73,8 @@ export function TriageScreen({
       <section className="surface flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl shadow-sm">
       <FilterBar
         subreddit={subreddit} onSubredditChange={setSubreddit}
+        communities={communitiesQuery.data?.items ?? []}
+        communitiesLoading={communitiesQuery.isPending}
         year={year} onYearChange={setYear}
         minComments={minComments} onMinCommentsChange={setMinComments}
         uncodedOnly={uncodedOnly} onUncodedOnlyChange={setUncodedOnly}

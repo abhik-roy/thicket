@@ -35,8 +35,10 @@ def list_threads(
         clauses.append("id > ?")
         params.append(cursor)
     if subreddit is not None:
-        clauses.append("subreddit = ?")
-        params.append(subreddit)
+        normalized_subreddit = subreddit.strip().removeprefix("r/").strip("/")
+        if normalized_subreddit:
+            clauses.append("subreddit = ? COLLATE NOCASE")
+            params.append(normalized_subreddit)
     if hydrated_only:
         clauses.append("hydrated = 1 AND n_comments_fetched > 0")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
@@ -47,6 +49,22 @@ def list_threads(
     items = [_row_to_dict(cur, r) for r in rows[:limit]]
     next_cursor = items[-1]["id"] if len(rows) > limit else None
     return {"items": items, "next_cursor": next_cursor}
+
+
+@router.get("/communities")
+def list_communities(
+        conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """Return the communities present in the active local corpus."""
+    rows = conn.execute(
+        "SELECT subreddit, COUNT(*) AS thread_count "
+        "FROM corpus.threads GROUP BY subreddit "
+        "ORDER BY subreddit COLLATE NOCASE"
+    ).fetchall()
+    return {
+        "items": [
+            {"name": row[0], "thread_count": row[1]} for row in rows
+        ],
+    }
 
 
 @router.get("/threads/{thread_id}")

@@ -80,6 +80,25 @@ def test_list_threads_filters_by_subreddit(client):
     assert len(body["items"]) == 3
 
 
+def test_list_threads_normalizes_common_subreddit_forms(client):
+    for value in ("SUB", "r/sub", "r/sub/"):
+        body = client.get(
+            "/threads", params={"subreddit": value, "limit": 100}).json()
+        assert len(body["items"]) == 3
+        assert all(t["subreddit"] == "sub" for t in body["items"])
+
+
+def test_list_communities_returns_corpus_options_and_counts(client):
+    response = client.get("/communities")
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {"name": "other", "thread_count": 2},
+            {"name": "sub", "thread_count": 3},
+        ],
+    }
+
+
 def test_list_threads_can_filter_to_hydrated_work_queue(client):
     resp = client.get("/threads?hydrated_only=true&limit=100")
     body = resp.json()

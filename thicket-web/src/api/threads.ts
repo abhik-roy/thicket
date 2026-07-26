@@ -25,6 +25,18 @@ export interface ThreadsPage {
   next_cursor: string | null
 }
 
+export interface Community {
+  name: string
+  thread_count: number
+}
+
+export function useCommunities() {
+  return useQuery({
+    queryKey: ['communities'],
+    queryFn: () => apiFetch<{ items: Community[] }>('/communities'),
+  })
+}
+
 export interface Coder {
   id: string
   name: string

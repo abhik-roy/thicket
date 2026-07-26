@@ -3,6 +3,8 @@ import type { RefObject } from 'react'
 export interface FilterBarProps {
   subreddit: string
   onSubredditChange: (value: string) => void
+  communities: { name: string; thread_count: number }[]
+  communitiesLoading?: boolean
   year: string
   onYearChange: (value: string) => void
   minComments: number
@@ -18,6 +20,7 @@ export interface FilterBarProps {
 
 export function FilterBar({
   subreddit, onSubredditChange,
+  communities, communitiesLoading = false,
   year, onYearChange,
   minComments, onMinCommentsChange,
   uncodedOnly, onUncodedOnlyChange,
@@ -29,13 +32,22 @@ export function FilterBar({
     <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 bg-white px-5 py-4 text-sm">
       <label className="grid gap-1 text-xs font-semibold text-slate-600">
         Community
-        <input
+        <select
           aria-label="Subreddit"
           value={subreddit}
           onChange={(e) => onSubredditChange(e.target.value)}
-          placeholder="all"
           className="field w-40 text-sm font-normal"
-        />
+          disabled={communitiesLoading}
+        >
+          <option value="">
+            {communitiesLoading ? 'Loading…' : 'All communities'}
+          </option>
+          {communities.map((community) => (
+            <option key={community.name} value={community.name}>
+              r/{community.name} ({community.thread_count})
+            </option>
+          ))}
+        </select>
       </label>
       <label className="grid gap-1 text-xs font-semibold text-slate-600">
         Year
