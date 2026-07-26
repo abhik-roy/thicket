@@ -13,6 +13,7 @@ from thicket.config import Settings, save_settings, settings_file
 from thicket.seed_default import seed_default
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
+DATABASE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
 
 
 class WorkspaceIn(BaseModel):
@@ -35,7 +36,7 @@ def _tables(path: Path) -> set[str]:
 
 def _validated_path(raw: str) -> Path:
     path = Path(raw).expanduser().resolve()
-    if path.suffix.lower() not in {".db", ".sqlite", ".sqlite3"}:
+    if path.suffix.lower() not in DATABASE_SUFFIXES:
         raise HTTPException(
             400, "database paths must end in .db, .sqlite, or .sqlite3")
     return path
@@ -133,6 +134,46 @@ def discover_databases() -> dict:
         for pattern in ("*.db", "*.sqlite", "*.sqlite3"):
             found.update(str(path.resolve()) for path in directory.glob(pattern))
     return {"paths": sorted(found)}
+
+
+@router.get("/browse")
+def browse_files(path: str | None = None) -> dict:
+    """List folders and SQLite files for the local GUI file picker."""
+    requested = Path(path).expanduser() if path else Path.home()
+    directory = requested.resolve()
+    if not directory.exists():
+        raise HTTPException(404, f"folder not found: {directory}")
+    if not directory.is_dir():
+        raise HTTPException(400, f"path is not a folder: {directory}")
+    try:
+        children = sorted(
+            directory.iterdir(),
+            key=lambda item: (not item.is_dir(), item.name.casefold()),
+        )
+    except PermissionError:
+        raise HTTPException(403, f"cannot open folder: {directory}") from None
+
+    entries = []
+    for child in children:
+        try:
+            is_directory = child.is_dir()
+            if not is_directory and (
+                    not child.is_file()
+                    or child.suffix.lower() not in DATABASE_SUFFIXES):
+                continue
+        except OSError:
+            continue
+        entries.append({
+            "name": child.name,
+            "path": str(child.resolve()),
+            "kind": "directory" if is_directory else "database",
+        })
+    parent = directory.parent
+    return {
+        "directory": str(directory),
+        "parent": None if parent == directory else str(parent),
+        "entries": entries,
+    }
 
 
 @router.put("")

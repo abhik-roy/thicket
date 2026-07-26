@@ -41,7 +41,7 @@ describe('WorkspaceManager', () => {
     )
 
     await waitFor(() => expect(
-      screen.getByDisplayValue('/research/corpus.db')).toBeTruthy())
+      screen.getByText('/research/corpus.db')).toBeTruthy())
     expect(screen.getByText('42')).toBeTruthy()
     await userEvent.click(screen.getByRole(
       'button', { name: 'Use this workspace' }))
@@ -52,5 +52,43 @@ describe('WorkspaceManager', () => {
       labels_db: '/research/labels.db',
       create_missing: false,
     })
+  })
+
+  it('selects a corpus database with the GUI file picker', async () => {
+    server.use(
+      http.get('http://localhost:8000/workspace', () =>
+        HttpResponse.json(WORKSPACE)),
+      http.get('http://localhost:8000/workspace/browse', () =>
+        HttpResponse.json({
+          directory: '/research',
+          parent: '/',
+          entries: [
+            { name: 'archive', path: '/research/archive', kind: 'directory' },
+            { name: 'new-corpus.db', path: '/research/new-corpus.db', kind: 'database' },
+          ],
+        })),
+    )
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <WorkspaceManager onClose={vi.fn()} onSwitched={vi.fn()} />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(
+      screen.getAllByRole('button', { name: 'Browse…' })).toHaveLength(2))
+    await userEvent.click(screen.getAllByRole(
+      'button', { name: 'Browse…' },
+    )[0])
+    await userEvent.click(await screen.findByRole(
+      'button', { name: /new-corpus\.db/ },
+    ))
+
+    expect(screen.getByText('/research/new-corpus.db')).toBeTruthy()
+    expect(screen.queryByRole(
+      'dialog', { name: 'Choose corpus database' },
+    )).toBeNull()
   })
 })

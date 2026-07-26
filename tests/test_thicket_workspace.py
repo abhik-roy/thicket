@@ -82,3 +82,31 @@ def test_workspace_rejects_same_file_for_corpus_and_labels(
         "create_missing": False,
     })
     assert response.status_code == 400
+
+
+def test_workspace_browser_lists_only_folders_and_databases(
+        monkeypatch, tmp_path):
+    client, _ = _client(monkeypatch, tmp_path)
+    folder = tmp_path / "browse"
+    folder.mkdir()
+    (folder / "nested").mkdir()
+    (folder / "corpus.db").touch()
+    (folder / "notes.txt").touch()
+
+    response = client.get("/workspace/browse", params={"path": str(folder)})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["directory"] == str(folder)
+    assert [(entry["name"], entry["kind"]) for entry in body["entries"]] == [
+        ("nested", "directory"),
+        ("corpus.db", "database"),
+    ]
+    assert body["parent"] == str(tmp_path)
+
+
+def test_workspace_browser_rejects_missing_folder(monkeypatch, tmp_path):
+    client, _ = _client(monkeypatch, tmp_path)
+    response = client.get(
+        "/workspace/browse", params={"path": str(tmp_path / "absent")})
+    assert response.status_code == 404

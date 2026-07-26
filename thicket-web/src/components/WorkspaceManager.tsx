@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
-  useDiscoveredDatabases, useSwitchWorkspace, useWorkspace,
+  useSwitchWorkspace, useWorkspace,
 } from '../api/workspace'
+import { DatabaseFilePicker } from './DatabaseFilePicker'
 
 export interface WorkspaceManagerProps {
   onClose: () => void
@@ -12,11 +13,11 @@ export function WorkspaceManager({
   onClose, onSwitched,
 }: WorkspaceManagerProps) {
   const workspace = useWorkspace()
-  const discovered = useDiscoveredDatabases()
   const switchWorkspace = useSwitchWorkspace()
   const [corpusPath, setCorpusPath] = useState('')
   const [labelsPath, setLabelsPath] = useState('')
   const [createMissing, setCreateMissing] = useState(false)
+  const [picking, setPicking] = useState<'corpus' | 'labels' | null>(null)
 
   useEffect(() => {
     if (!workspace.data) return
@@ -34,8 +35,6 @@ export function WorkspaceManager({
       onSuccess: onSwitched,
     })
   }
-
-  const paths = discovered.data?.paths ?? []
 
   return (
     <div
@@ -85,39 +84,35 @@ export function WorkspaceManager({
           </div>
         )}
 
-        <datalist id="thicket-database-paths">
-          {paths.map((path) => <option key={path} value={path} />)}
-        </datalist>
-
         <div className="mt-6 grid gap-4">
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          <div className="grid gap-1 text-sm font-semibold text-slate-700">
             Corpus database
-            <input
-              required
-              list="thicket-database-paths"
-              value={corpusPath}
-              onChange={(event) => setCorpusPath(event.target.value)}
-              placeholder="/path/to/corpus.db"
-              className="field font-mono text-xs font-normal"
-            />
+            <div className="flex gap-2">
+              <div className="field min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs font-normal">
+                {corpusPath || 'No database selected'}
+              </div>
+              <button type="button" onClick={() => setPicking('corpus')} className="btn-secondary">
+                Browse…
+              </button>
+            </div>
             <span className="text-xs font-normal text-slate-500">
               Contains source threads and replies.
             </span>
-          </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+          </div>
+          <div className="grid gap-1 text-sm font-semibold text-slate-700">
             Labels database
-            <input
-              required
-              list="thicket-database-paths"
-              value={labelsPath}
-              onChange={(event) => setLabelsPath(event.target.value)}
-              placeholder="/path/to/labels.db"
-              className="field font-mono text-xs font-normal"
-            />
+            <div className="flex gap-2">
+              <div className="field min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-xs font-normal">
+                {labelsPath || 'No database selected'}
+              </div>
+              <button type="button" onClick={() => setPicking('labels')} className="btn-secondary">
+                Browse…
+              </button>
+            </div>
             <span className="text-xs font-normal text-slate-500">
               Contains coders, codebooks, labels, passes, and completion.
             </span>
-          </label>
+          </div>
           <label className="flex items-start gap-2 text-sm text-slate-700">
             <input
               type="checkbox"
@@ -153,6 +148,19 @@ export function WorkspaceManager({
           </button>
         </div>
       </form>
+      {picking && (
+        <DatabaseFilePicker
+          title={`Choose ${picking} database`}
+          initialPath={picking === 'corpus' ? corpusPath : labelsPath}
+          allowNew={createMissing}
+          onCancel={() => setPicking(null)}
+          onSelect={(path) => {
+            if (picking === 'corpus') setCorpusPath(path)
+            else setLabelsPath(path)
+            setPicking(null)
+          }}
+        />
+      )}
     </div>
   )
 }
