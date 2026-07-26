@@ -10,6 +10,8 @@ import { buildVisibleOrder } from '../lib/commentTree'
 import { useCommentTreeNav } from '../hooks/useCommentTreeNav'
 import { CommentNode } from '../components/CommentNode'
 import { CodePalette } from '../components/CodePalette'
+import { ConversationMap } from '../components/ConversationMap'
+import { CommentDetailModal } from '../components/CommentDetailModal'
 
 export interface ReplyTreeProps {
   coderId: string
@@ -21,6 +23,8 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
   const { threadId = '' } = useParams()
   const navigate = useNavigate()
   const [showOnlyCoded, setShowOnlyCoded] = useState(false)
+  const [viewMode, setViewMode] = useState<'map' | 'detail'>('map')
+  const [openCommentId, setOpenCommentId] = useState<string | null>(null)
 
   const commentsQuery = useComments(threadId)
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = commentsQuery
@@ -90,7 +94,10 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
       if (codeId) toggleCodeOnComment(index, codeId)
     },
     onMarkDone: handleMarkDone,
-    onBack: () => navigate('/'),
+    onBack: () => {
+      if (openCommentId) setOpenCommentId(null)
+      else navigate('/')
+    },
   })
 
   const rowVirtualizer = useVirtualizer({
@@ -125,6 +132,9 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
   const focusedComment = displayedComments[focusedIndex]
   const focusedAppliedCodeIds = focusedComment
     ? (labelDetails[focusedComment.id] ?? []).map((l) => l.code_id) : []
+  const openComment = openCommentId
+    ? displayedComments.find((comment) => comment.id === openCommentId)
+    : undefined
 
   return (
     <main className="app-shell flex h-screen flex-col">
@@ -137,6 +147,24 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${alreadyDone ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
           {alreadyDone ? '✅ marked done' : '— not yet done'}
         </span>
+        <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-1">
+          <button
+            type="button"
+            aria-pressed={viewMode === 'map'}
+            onClick={() => setViewMode('map')}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${viewMode === 'map' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}
+          >
+            Tree map
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === 'detail'}
+            onClick={() => setViewMode('detail')}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${viewMode === 'detail' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}
+          >
+            Full text
+          </button>
+        </div>
         <label className="ml-auto flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700">
           <input
             type="checkbox"
@@ -184,6 +212,19 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
                 No coded comments to show. Turn off the filter to resume coding.
               </p>
             )}
+          {viewMode === 'map' && (
+            <ConversationMap
+              comments={displayedComments}
+              labelDetails={labelDetails}
+              codesById={codesById}
+              focusedId={focusedComment?.id}
+              onOpen={(comment, index) => {
+                setFocusedIndex(index)
+                setOpenCommentId(comment.id)
+              }}
+            />
+          )}
+          {viewMode === 'detail' && (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
             {virtualItems.map((virtualRow) => {
               const comment = displayedComments[virtualRow.index]
@@ -210,16 +251,32 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
               )
             })}
           </div>
+          )}
         </section>
-        <CodePalette
+        {!openComment && <CodePalette
           codes={codes}
           appliedCodeIds={focusedAppliedCodeIds}
           onToggleCode={(codeId) => toggleCodeOnComment(focusedIndex, codeId)}
           disabled={createLabel.isPending || deleteLabel.isPending}
           isLoading={codesQuery.isPending}
           isError={codesQuery.isError}
-        />
+        />}
       </div>
+      {openComment && (
+        <CommentDetailModal
+          comment={openComment}
+          codes={codes}
+          appliedCodeIds={(labelDetails[openComment.id] ?? []).map(
+            (label) => label.code_id)}
+          disabled={createLabel.isPending || deleteLabel.isPending}
+          onClose={() => setOpenCommentId(null)}
+          onToggleCode={(codeId) => {
+            const index = displayedComments.findIndex(
+              (comment) => comment.id === openComment.id)
+            if (index >= 0) toggleCodeOnComment(index, codeId)
+          }}
+        />
+      )}
       <footer className="flex items-center gap-3 border-t border-slate-200 bg-white px-5 py-2 text-xs text-slate-500">
         <span><span className="kbd">J</span> <span className="kbd">K</span> move</span>
         <span><span className="kbd">1–9</span> code</span>

@@ -10,7 +10,7 @@ import { ReplyTree } from '../../src/screens/ReplyTree'
 const COMMENTS = [
   {
     id: 'c1', thread_id: 't1', parent_id: null, author: 'op_person',
-    body: 'top level comment', score: 10, controversiality: 0,
+    body: 'top level comment\nhidden detail', score: 10, controversiality: 0,
     is_submitter: 1, depth: 0, created_utc: 0,
   },
   {
@@ -81,6 +81,26 @@ function setup() {
 }
 
 describe('ReplyTree', () => {
+  it('defaults to a compact color-coded tree and opens full text in a modal', async () => {
+    setup()
+    const node = await screen.findByTestId('map-node-c1')
+    expect(screen.getByTestId('conversation-map')).toBeTruthy()
+    expect(node.textContent).toContain('top level comment')
+    expect(node.textContent).not.toContain('hidden detail')
+
+    await userEvent.click(node)
+
+    const dialog = screen.getByRole('dialog', { name: 'Full comment' })
+    expect(dialog.textContent).toContain('top level comment')
+    expect(dialog.textContent).toContain('hidden detail')
+    expect(dialog.textContent).toContain('Color code this comment')
+    await userEvent.click(screen.getByRole(
+      'button', { name: /Emotional support/ }))
+    await waitFor(() => expect(
+      screen.getByTestId('map-node-c1').getAttribute('style'),
+    ).toContain('border-left-color'))
+  })
+
   it('renders comments in tree order with the OP badge', async () => {
     setup()
     await waitFor(() => expect(screen.getByTestId('comment-c1')).toBeTruthy())
