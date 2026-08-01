@@ -159,6 +159,29 @@ npm run build
 Set `VITE_API_URL` before starting or building when the API is not available at
 the frontend's default origin.
 
+## Serving the built frontend from the API
+
+For a single-process deployment, point `THICKET_STATIC_DIR` at the build output
+and the API serves the frontend itself:
+
+```bash
+cd thicket-web && VITE_API_URL= npm run build && cd ..
+THICKET_STATIC_DIR=$PWD/thicket-web/dist \
+    uvicorn thicket.main:app --host 127.0.0.1 --port 8000
+```
+
+Everything is then on one origin, so the browser makes no cross-origin request
+and the CORS rules do not apply. An empty `VITE_API_URL` is what makes the
+frontend use relative paths. Unknown paths fall back to `index.html` so
+client-side routes such as `/thread/<id>` survive a refresh. Leave
+`THICKET_STATIC_DIR` unset during development, where Vite serves the frontend.
+
+Thicket has no authentication, and `/workspace/browse` lists any directory the
+process can read. Both are safe for a local workspace. Before exposing the
+application beyond localhost, restrict access at the network layer and confine
+the process — for example a private VPN address, plus systemd's `ProtectHome`
+and `ProtectSystem=strict` with the data directory as the only writable path.
+
 ## Troubleshooting
 
 - Empty queue: clear restrictive filters and confirm the corpus database has

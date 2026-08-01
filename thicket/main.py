@@ -1,11 +1,16 @@
 """FastAPI app entrypoint."""
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import FileResponse
 
 from thicket import corpus, db
 from thicket.config import Settings
@@ -48,3 +53,32 @@ app.include_router(workspace.router)
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+class _SinglePageFiles(StaticFiles):
+    """Static files with a single-page-app fallback.
+
+    The frontend uses BrowserRouter, so a deep link such as /thread/abc123 is
+    a real request to the server on refresh or share. Anything that is not an
+    actual file on disk is answered with index.html and routed client-side.
+    """
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            return FileResponse(Path(self.directory) / "index.html")
+
+
+# Optional single-origin deployment: when THICKET_STATIC_DIR points at a built
+# frontend, the API process also serves it, so the browser never issues a
+# cross-origin request and the CORS rules above stop mattering. Unset during
+# local development, where Vite serves the frontend on its own port.
+_static_dir = os.environ.get("THICKET_STATIC_DIR")
+if _static_dir:
+    # Mounted last so every route registered above keeps precedence over the
+    # catch-all.
+    app.mount(
+        "/", _SinglePageFiles(directory=_static_dir, html=True), name="static")
