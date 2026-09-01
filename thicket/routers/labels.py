@@ -22,11 +22,12 @@ def _row_to_dict(cursor: sqlite3.Cursor, row: tuple) -> dict:
 @router.get("/codebooks")
 def list_codebooks(conn: sqlite3.Connection = Depends(get_conn)) -> list:
     cur = conn.execute(
-        "SELECT cb.*, COUNT(l.id) AS label_count "
-        "FROM codebooks cb "
-        "LEFT JOIN codes c ON c.codebook_id = cb.id "
-        "LEFT JOIN labels l ON l.code_id = c.id "
-        "GROUP BY cb.id ORDER BY cb.id")
+        "SELECT cb.*, "
+        "(SELECT COUNT(*) FROM labels l JOIN codes c ON c.id=l.code_id "
+        " WHERE c.codebook_id=cb.id) + "
+        "(SELECT COUNT(*) FROM segment_codes sc JOIN codes c ON c.id=sc.code_id "
+        " WHERE c.codebook_id=cb.id) AS label_count "
+        "FROM codebooks cb ORDER BY cb.id")
     return [_row_to_dict(cur, r) for r in cur.fetchall()]
 
 

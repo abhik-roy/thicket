@@ -43,6 +43,21 @@ def test_list_codebooks(client):
     assert [c["id"] for c in resp.json()] == ["cb"]
 
 
+def test_codebook_usage_count_includes_segment_codes(client):
+    connection_override = app.dependency_overrides[get_conn]()
+    conn = next(connection_override)
+    conn.execute(
+        "INSERT INTO evidence_segments VALUES "
+        "('s1','comment','p1','t1','a',1,0,4,'text','text','',"
+        "'coded','x','x')")
+    conn.execute("INSERT INTO segment_codes VALUES ('s1','inc','x')")
+    conn.commit()
+    response = client.get("/codebooks")
+    assert response.status_code == 200
+    assert response.json()[0]["label_count"] == 1
+    connection_override.close()
+
+
 def test_list_codes_in_codebook(client):
     resp = client.get("/codebooks/cb/codes")
     assert resp.status_code == 200
