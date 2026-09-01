@@ -124,9 +124,15 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
       ? selected.filter((id) => id !== codeId) : [...selected, codeId])
   }
   const scopeLabel = codeFilters.length > 0 ? `${codeFilters.length} code ${codeFilters.length === 1 ? 'filter' : 'filters'}` : scope === 'all' ? 'All data units' : scope === 'uncoded' ? 'Needs coding' : scope === 'uncertain' ? 'Uncertain / revisit' : themes.find((item) => `theme:${item.id}` === scope)?.name ?? 'Theme'
-  const exportUrl = `${BASE_URL}/export/segments?${new URLSearchParams({
+  const exportParams = new URLSearchParams({
     codebook_id: codebookId, coder_id: coderId, pass_no: String(passNo),
-  }).toString()}`
+    view: scope === 'uncoded' || scope === 'uncertain' ? scope : 'all',
+  })
+  if (threadFilter !== 'all') exportParams.set('thread_id', threadFilter)
+  if (codeFilters.length > 0) exportParams.set('code_ids', codeFilters.join(','))
+  if (scope.startsWith('theme:')) exportParams.set('theme_id', scope.slice(6))
+  if (query.trim()) exportParams.set('search', query.trim())
+  const exportUrl = `${BASE_URL}/export/segments?${exportParams.toString()}`
   const pdfExportUrl = `${exportUrl}&format=pdf`
 
   return <main className="app-shell min-h-screen">

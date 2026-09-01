@@ -102,3 +102,19 @@ def test_export_segments_pdf_is_a_styled_download(client):
     assert resp.content.startswith(b"%PDF-")
     assert 'filename="thicket-segments-a-pass-1.pdf"' in resp.headers[
         "content-disposition"]
+
+
+def test_segment_exports_follow_active_filters(client):
+    import csv
+    import io
+
+    def rows_for(query: str):
+        response = client.get(
+            "/export/segments?codebook_id=cb&coder_id=a&pass_no=1&" + query)
+        assert response.status_code == 200
+        return list(csv.DictReader(io.StringIO(response.text)))
+
+    assert len(rows_for("thread_id=t1&code_ids=inc&search=analytic")) == 1
+    assert rows_for("thread_id=another-thread") == []
+    assert rows_for("search=does-not-exist") == []
+    assert rows_for("view=uncoded") == []

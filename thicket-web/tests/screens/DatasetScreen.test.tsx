@@ -96,5 +96,8 @@ describe('DatasetScreen', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: /Governance concern/ }))
     expect(screen.getByText('“Policy evidence”')).toBeTruthy()
     expect(screen.getByText('“Governance evidence”')).toBeTruthy()
+    await userEvent.click(screen.getByText('Export ▾'))
+    expect(screen.getByRole('link', { name: 'PDF card report' })).toHaveAttribute(
+      'href', expect.stringContaining('code_ids=code-a%2Ccode-b'))
   })
 })

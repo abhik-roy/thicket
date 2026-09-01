@@ -8,6 +8,7 @@ import json
 import re
 import sqlite3
 from collections.abc import Iterator
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -20,7 +21,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
     Flowable, HRFlowable, Paragraph, SimpleDocTemplate, Spacer,
 )
-from xml.sax.saxutils import escape
+from xml.sax.saxutils import escape, quoteattr
 
 from thicket.deps import get_conn
 
@@ -81,7 +82,6 @@ JOIN coders co ON co.id=s.coder_id
 LEFT JOIN corpus.comments cm ON s.item_type='comment' AND cm.id=s.item_id
 LEFT JOIN corpus.threads th ON s.item_type='thread' AND th.id=s.item_id
 WHERE s.coder_id=? AND s.pass_no=?
-ORDER BY s.thread_id, source_created_utc, s.start_offset, s.created_at
 """
 
 
@@ -110,21 +110,58 @@ def _csv_stream(conn: sqlite3.Connection, codebook_id: str) -> Iterator[str]:
 
 
 def _segment_rows(conn: sqlite3.Connection, codebook_id: str,
-                  coder_id: str, pass_no: int) -> Iterator[dict]:
-    cur = conn.execute(_SEGMENT_QUERY,
-                       (codebook_id, codebook_id, codebook_id, codebook_id,
-                        codebook_id, codebook_id, coder_id, pass_no))
+                  coder_id: str, pass_no: int, thread_id: str | None = None,
+                  code_ids: list[str] | None = None,
+                  view: Literal["all", "uncoded", "uncertain"] = "all",
+                  theme_id: str | None = None,
+                  search: str | None = None) -> Iterator[dict]:
+    sql = _SEGMENT_QUERY
+    args: list = [codebook_id] * 6 + [coder_id, pass_no]
+    if thread_id:
+        sql += " AND s.thread_id=?"
+        args.append(thread_id)
+    if code_ids:
+        placeholders = ",".join("?" * len(code_ids))
+        sql += (" AND EXISTS (SELECT 1 FROM segment_codes f "
+                f"WHERE f.segment_id=s.id AND f.code_id IN ({placeholders}))")
+        args.extend(code_ids)
+    if view == "uncoded":
+        sql += (" AND NOT EXISTS (SELECT 1 FROM segment_codes f "
+                "JOIN codes fc ON fc.id=f.code_id WHERE f.segment_id=s.id "
+                "AND fc.codebook_id=?)")
+        args.append(codebook_id)
+    elif view == "uncertain":
+        sql += " AND s.status='uncertain'"
+    if theme_id:
+        sql += (" AND EXISTS (SELECT 1 FROM segment_themes ft "
+                "WHERE ft.segment_id=s.id AND ft.theme_id=?)")
+        args.append(theme_id)
+    if search and search.strip():
+        needle = f"%{search.strip().lower()}%"
+        sql += (" AND (lower(s.selected_text) LIKE ? OR lower(s.context_text) LIKE ? "
+                "OR lower(COALESCE(s.memo,'')) LIKE ? "
+                "OR lower(COALESCE(cm.author,th.author,'')) LIKE ? "
+                "OR EXISTS (SELECT 1 FROM segment_codes fs JOIN codes fc "
+                "ON fc.id=fs.code_id WHERE fs.segment_id=s.id "
+                "AND lower(fc.name) LIKE ?) "
+                "OR EXISTS (SELECT 1 FROM segment_themes fts JOIN themes ft "
+                "ON ft.id=fts.theme_id WHERE fts.segment_id=s.id "
+                "AND lower(ft.name) LIKE ?))")
+        args.extend([needle] * 6)
+    sql += " ORDER BY s.thread_id, source_created_utc, s.start_offset, s.created_at"
+    cur = conn.execute(sql, args)
     for values in cur:
         yield dict(zip(_SEGMENT_COLUMNS, values))
 
 
 def _segment_csv_stream(conn: sqlite3.Connection, codebook_id: str,
-                        coder_id: str, pass_no: int) -> Iterator[str]:
+                        coder_id: str, pass_no: int, **filters) -> Iterator[str]:
     buf = io.StringIO()
     writer = csv.DictWriter(buf, fieldnames=_SEGMENT_COLUMNS)
     writer.writeheader()
     yield buf.getvalue()
-    for row in _segment_rows(conn, codebook_id, coder_id, pass_no):
+    for row in _segment_rows(
+            conn, codebook_id, coder_id, pass_no, **filters):
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=_SEGMENT_COLUMNS)
         writer.writerow(row)
@@ -193,11 +230,15 @@ def _pdf_bytes(rows: list[dict], coder_id: str, pass_no: int) -> bytes:
         code_colors = row["code_colors"].split(" | ") if row["code_colors"] else []
         theme_names = row["themes"].split(" | ") if row["themes"] else []
         theme_colors = row["theme_colors"].split(" | ") if row["theme_colors"] else []
+        source_link = (f" &nbsp;·&nbsp; <link href={quoteattr(row['permalink'])} "
+                       f"color=\"#174f3c\"><u>Original post</u></link>"
+                       if row["permalink"] else "")
         contents: list = [Paragraph(
             f"<b>{escape(row['thread_id'])}</b> &nbsp;·&nbsp; "
             f"{escape(row['item_id'])} &nbsp;·&nbsp; "
             f"{escape(row['author'] or 'Unknown author')} &nbsp;·&nbsp; "
-            f"{escape(row['status'])}", meta),
+            f"{escape(row['status'])}{source_link}", meta),
+            Spacer(1, 3 * mm),
             Paragraph(f"“{escape(row['selected_text'])}”", quote)]
         if row["memo"]:
             contents.append(Paragraph(f"<b>Memo:</b> {escape(row['memo'])}", memo))
@@ -230,14 +271,24 @@ def export(codebook_id: str, format: str = "jsonl",
 @router.get("/export/segments")
 def export_segments(codebook_id: str, coder_id: str, format: str = "csv",
                     pass_no: int = Query(ge=1, le=2),
+                    thread_id: str | None = None,
+                    code_ids: str | None = None,
+                    view: Literal["all", "uncoded", "uncertain"] = "all",
+                    theme_id: str | None = None,
+                    search: str | None = None,
                     conn: sqlite3.Connection = Depends(get_conn)
                     ) -> StreamingResponse:
     """Export source-grounded analysis units, one complete segment per row."""
     safe_coder_id = re.sub(r"[^A-Za-z0-9._-]+", "-", coder_id).strip("-._")
     stem = f"thicket-segments-{safe_coder_id or 'coder'}-pass-{pass_no}"
+    filters = {
+        "thread_id": thread_id,
+        "code_ids": [value for value in (code_ids or "").split(",") if value],
+        "view": view, "theme_id": theme_id, "search": search,
+    }
     if format == "pdf":
         body = _pdf_bytes(list(_segment_rows(
-            conn, codebook_id, coder_id, pass_no)), coder_id, pass_no)
+            conn, codebook_id, coder_id, pass_no, **filters)), coder_id, pass_no)
         return StreamingResponse(
             iter([body]), media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{stem}.pdf"'},
@@ -245,7 +296,8 @@ def export_segments(codebook_id: str, coder_id: str, format: str = "csv",
     if format != "csv":
         raise HTTPException(400, f"unknown format: {format!r}")
     return StreamingResponse(
-        _segment_csv_stream(conn, codebook_id, coder_id, pass_no),
+        _segment_csv_stream(
+            conn, codebook_id, coder_id, pass_no, **filters),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'},
     )
