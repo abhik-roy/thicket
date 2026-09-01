@@ -27,6 +27,29 @@ button, a { -webkit-tap-highlight-color: transparent; }
 :focus-visible { outline: 3px solid #77a991; outline-offset: 2px; }
 ::selection { background: #cbe3d5; color: #10261d; }
 .target-evidence { animation: evidence-pulse 1.5s ease-out 2; outline: 3px solid #d97706; outline-offset: 2px; }
+.evidence-highlight { position: relative; }
+.evidence-highlight:hover { z-index: 30; }
+.evidence-highlight:hover::after {
+  position: absolute;
+  bottom: calc(100% + .45rem);
+  left: 50%;
+  z-index: 40;
+  width: max-content;
+  max-width: min(24rem, 72vw);
+  transform: translateX(-50%);
+  border-radius: .65rem;
+  background: #0f172a;
+  box-shadow: 0 8px 24px rgb(15 23 42 / .22);
+  color: white;
+  content: attr(data-evidence-codes);
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: .45rem .65rem;
+  pointer-events: none;
+  text-align: center;
+  white-space: normal;
+}
 @keyframes evidence-pulse { 50% { outline-color: #fbbf24; background: #fef3c7; } }
 @media (prefers-reduced-motion: reduce) { .target-evidence { animation: none; } }
 

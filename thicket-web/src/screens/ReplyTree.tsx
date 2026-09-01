@@ -6,7 +6,7 @@ import {
   useLabelDetailsForPages, useMarkThreadDone, useUnmarkThreadDone,
 } from '../api/comments'
 import { useAssignmentStatus } from '../api/threads'
-import { buildVisibleOrder } from '../lib/commentTree'
+import { buildTreeLayout, buildVisibleOrder } from '../lib/commentTree'
 import { useCommentTreeNav } from '../hooks/useCommentTreeNav'
 import { CommentNode } from '../components/CommentNode'
 import { ConversationMap } from '../components/ConversationMap'
@@ -115,6 +115,9 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
       ? visibleOrder.filter((c) => (labelDetails[c.id] ?? []).length > 0)
       : visibleOrder
   ), [visibleOrder, showOnlyCoded, labelDetails])
+  const replyLayoutById = useMemo(() => Object.fromEntries(
+    buildTreeLayout(displayedComments).map((row) => [row.item.id, row])),
+  [displayedComments])
 
   const createLabel = useCreateLabel()
   const deleteLabel = useDeleteLabel()
@@ -166,10 +169,14 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
   const virtualItems = rowVirtualizer.getVirtualItems()
 
   useEffect(() => {
-    if (displayedComments.length > 0) {
+    if (displayedComments.length > 0 && orderMode === 'timeline') {
       rowVirtualizer.scrollToIndex(focusedIndex, { align: 'auto' })
+    } else if (displayedComments.length > 0 && orderMode === 'replies') {
+      const id = displayedComments[focusedIndex]?.id
+      if (id) document.getElementById(`tree-comment-${id}`)
+        ?.scrollIntoView?.({ block: 'nearest' })
     }
-  }, [focusedIndex, displayedComments.length, rowVirtualizer])
+  }, [focusedIndex, displayedComments, orderMode, rowVirtualizer])
 
   useEffect(() => {
     const lastItem = virtualItems[virtualItems.length - 1]
@@ -307,6 +314,7 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
               comments={displayedComments}
               labelDetails={labelDetails}
               codesById={codesById}
+              segmentsByItem={segmentsByItem}
               focusedId={focusedComment?.id}
               onOpen={(comment, index) => {
                 setFocusedIndex(index)
@@ -314,10 +322,11 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
               }}
             />
           )}
-          {viewMode === 'detail' && (
+          {viewMode === 'detail' && orderMode === 'timeline' && (
           <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
             {virtualItems.map((virtualRow) => {
               const comment = displayedComments[virtualRow.index]
+              const treeRow = replyLayoutById[comment.id]
               return (
                 <div
                   key={comment.id}
@@ -338,13 +347,45 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
                     onFocus={() => setFocusedIndex(virtualRow.index)}
                     segments={segmentsByItem[comment.id] ?? []}
                     onTextSelect={setSelection}
-                    indentReplies={orderMode === 'replies'}
+                    indentReplies={false}
+                    treeDepth={treeRow?.depth ?? 0}
+                    ancestorContinues={treeRow?.ancestorContinues ?? []}
+                    isLastSibling={treeRow?.isLastSibling ?? true}
                     targetSegmentId={targetSegmentId}
                   />
                 </div>
               )
             })}
           </div>
+          )}
+          {viewMode === 'detail' && orderMode === 'replies' && (
+            <div className="pb-4">
+              {displayedComments.map((comment, index) => {
+                const treeRow = replyLayoutById[comment.id]
+                return <div key={comment.id} id={`tree-comment-${comment.id}`}>
+                  <CommentNode
+                    comment={comment}
+                    appliedCodeIds={(labelDetails[comment.id] ?? []).map((label) => label.code_id)}
+                    codesById={codesById}
+                    focused={index === focusedIndex}
+                    onFocus={() => setFocusedIndex(index)}
+                    segments={segmentsByItem[comment.id] ?? []}
+                    onTextSelect={setSelection}
+                    indentReplies
+                    treeDepth={treeRow?.depth ?? 0}
+                    ancestorContinues={treeRow?.ancestorContinues ?? []}
+                    isLastSibling={treeRow?.isLastSibling ?? true}
+                    targetSegmentId={targetSegmentId}
+                  />
+                </div>
+              })}
+              {hasNextPage && <div className="flex justify-center p-4">
+                <button className="btn-secondary" disabled={isFetchingNextPage}
+                  onClick={() => fetchNextPage()}>
+                  {isFetchingNextPage ? 'Loading replies…' : 'Load more replies'}
+                </button>
+              </div>}
+            </div>
           )}
         </section>
         {!openComment && workbenchOpen && <OpenCodingWorkbench

@@ -3,6 +3,13 @@ interface TreeNode {
   parent_id: string | null
 }
 
+export interface TreeLayoutRow<T> {
+  item: T
+  depth: number
+  ancestorContinues: boolean[]
+  isLastSibling: boolean
+}
+
 function bareCommentId(parentId: string | null): string | null {
   if (parentId === null || parentId.startsWith('t3_')) return null
   return parentId.startsWith('t1_') ? parentId.slice(3) : parentId
@@ -14,7 +21,7 @@ function bareCommentId(parentId: string | null): string | null {
  * risk a JS call-stack overflow, the same class of bug already hit once in
  * this project's scraper-side comment-depth resolution.
  */
-export function buildVisibleOrder<T extends TreeNode>(comments: T[]): T[] {
+export function buildTreeLayout<T extends TreeNode>(comments: T[]): TreeLayoutRow<T>[] {
   const knownIds = new Set(comments.map((c) => c.id))
   const byParent = new Map<string | null, T[]>()
   for (const comment of comments) {
@@ -32,17 +39,38 @@ export function buildVisibleOrder<T extends TreeNode>(comments: T[]): T[] {
     }
   }
 
-  const visible: T[] = []
-  const stack: T[] = [...(byParent.get(null) ?? [])].reverse()
+  const visible: TreeLayoutRow<T>[] = []
+  const roots = byParent.get(null) ?? []
+  const stack: Array<{
+    item: T
+    depth: number
+    ancestorContinues: boolean[]
+    isLastSibling: boolean
+  }> = roots.map((item) => ({
+    item, depth: 0, ancestorContinues: [],
+    isLastSibling: true,
+  })).reverse()
   while (stack.length > 0) {
-    const current = stack.pop() as T
+    const current = stack.pop() as TreeLayoutRow<T>
     visible.push(current)
-    const children = byParent.get(current.id)
+    const children = byParent.get(current.item.id)
     if (children) {
       for (let i = children.length - 1; i >= 0; i--) {
-        stack.push(children[i])
+        stack.push({
+          item: children[i],
+          depth: current.depth + 1,
+          ancestorContinues: [
+            ...current.ancestorContinues,
+            !current.isLastSibling,
+          ],
+          isLastSibling: i === children.length - 1,
+        })
       }
     }
   }
   return visible
+}
+
+export function buildVisibleOrder<T extends TreeNode>(comments: T[]): T[] {
+  return buildTreeLayout(comments).map((row) => row.item)
 }

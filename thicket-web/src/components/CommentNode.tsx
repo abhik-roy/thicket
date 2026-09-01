@@ -1,5 +1,6 @@
 import type { Code, Comment } from '../api/comments'
 import type { EvidenceSegment, SelectionDraft } from '../api/openCoding'
+import { TreeConnectors } from './TreeConnectors'
 
 export interface CommentNodeProps {
   comment: Comment
@@ -10,12 +11,17 @@ export interface CommentNodeProps {
   segments?: EvidenceSegment[]
   onTextSelect?: (selection: SelectionDraft) => void
   indentReplies?: boolean
+  treeDepth?: number
+  ancestorContinues?: boolean[]
+  isLastSibling?: boolean
   targetSegmentId?: string | null
 }
 
 export function CommentNode({
   comment, appliedCodeIds, codesById, focused, onFocus,
-  segments = [], onTextSelect, indentReplies = true, targetSegmentId = null,
+  segments = [], onTextSelect, indentReplies = true,
+  treeDepth = comment.depth, ancestorContinues = [], isLastSibling = true,
+  targetSegmentId = null,
 }: CommentNodeProps) {
   const firstCode = appliedCodeIds.length > 0
     ? codesById[appliedCodeIds[0]] : undefined
@@ -59,14 +65,16 @@ export function CommentNode({
       const text = comment.body.slice(start, end)
       if (covering.length === 0) return text
       const color = covering[0].codes[0]?.color ?? '#d99a2b'
+      const codeNames = Array.from(new Set(
+        covering.flatMap((segment) => segment.codes.map((code) => code.name))))
+      const evidenceCodes = codeNames.length > 0
+        ? codeNames.join(' · ') : 'Uncoded evidence'
       const isTarget = covering.some((segment) => segment.id === targetSegmentId)
       return (
         <mark
           key={`${start}-${end}`}
-          title={covering.map((segment) =>
-            segment.codes.map((code) => code.name).join(', ') || segment.status
-          ).join(' · ')}
-          className={`rounded-sm px-0.5 text-inherit ${isTarget ? 'target-evidence' : ''}`}
+          data-evidence-codes={evidenceCodes}
+          className={`evidence-highlight rounded-sm px-0.5 text-inherit ${isTarget ? 'target-evidence' : ''}`}
           style={{ backgroundColor: isTarget ? '#fde68a' : `${color}30`, boxShadow: `inset 0 -2px ${color}` }}
         >
           {text}
@@ -80,15 +88,18 @@ export function CommentNode({
       data-testid={`comment-${comment.id}`}
       onClick={onFocus}
       className={
-        'mx-4 my-2 cursor-pointer rounded-xl border px-4 py-3 text-sm transition-all ' +
+        'relative mx-4 my-2 cursor-pointer rounded-xl border px-4 py-3 text-sm transition-all ' +
         (focused ? 'border-emerald-500 bg-white shadow-md ring-2 ring-emerald-100 ' : 'border-slate-200 bg-white hover:border-slate-300 ')
       }
       style={{
         marginLeft: 16 + (indentReplies
-          ? Math.min(Math.max(comment.depth, 0), 8) * 18 : 0),
+          ? Math.min(Math.max(treeDepth, 0), 12) * 28 : 0),
         borderLeft: firstCode ? `3px solid ${firstCode.color}` : undefined,
       }}
     >
+      {indentReplies && <TreeConnectors depth={Math.min(treeDepth, 12)}
+        ancestorContinues={ancestorContinues.slice(0, 12)}
+        isLastSibling={isLastSibling} />}
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">{postLabel}</span>
         <span className="font-semibold text-slate-700">u/{comment.author}</span>

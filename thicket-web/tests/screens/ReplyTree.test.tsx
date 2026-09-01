@@ -112,6 +112,8 @@ describe('ReplyTree', () => {
     await waitFor(() => expect(screen.getByTestId('comment-c1')).toBeTruthy())
     expect(screen.getByTestId('comment-c1').textContent).toContain('OP')
     expect(screen.getByText('a reply')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Reply tree' }))
+    expect(screen.getByTestId('comment-c2').style.marginLeft).toBe('44px')
   })
 
   it('applies a code by clicking it in the palette', async () => {

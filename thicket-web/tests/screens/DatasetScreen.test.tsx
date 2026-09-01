@@ -37,6 +37,9 @@ describe('DatasetScreen', () => {
     </MemoryRouter></QueryClientProvider>)
 
     expect(await screen.findByText('“Evidence”')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Export CSV/ })).toHaveAttribute(
+      'href', expect.stringContaining(
+        '/export/segments?codebook_id=open&coder_id=analyst&pass_no=1'))
     await userEvent.click(screen.getByRole('button', { name: 'Remove selection' }))
     await waitFor(() => expect(deleted).toBe(true))
     expect(await screen.findByText('No data units in this view.')).toBeTruthy()

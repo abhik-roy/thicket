@@ -70,4 +70,20 @@ describe('CommentNode', () => {
     await userEvent.click(screen.getByTestId('comment-c1'))
     expect(onFocus).toHaveBeenCalled()
   })
+
+  it('exposes segment codes in the highlight hover bubble', () => {
+    render(<CommentNode comment={COMMENT} appliedCodeIds={[]}
+      codesById={CODES_BY_ID} focused={false} onFocus={vi.fn()}
+      segments={[{
+        id: 's1', item_type: 'comment', item_id: 'c1', thread_id: 't1',
+        coder_id: 'a', pass_no: 1, start_offset: 5, end_offset: 11,
+        selected_text: 'really', context_text: COMMENT.body, memo: '',
+        status: 'coded', created_at: 'x', updated_at: 'x', author: 'alice',
+        created_utc: 1, permalink: null, themes: [],
+        codes: [{ ...CODES_BY_ID.emotional }],
+      }]} />)
+    const highlight = document.querySelector('[data-evidence-codes]')
+    expect(highlight?.getAttribute('data-evidence-codes')).toBe('Emotional support')
+    expect(highlight?.textContent).toBe('really')
+  })
 })

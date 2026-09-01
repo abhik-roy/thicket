@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildVisibleOrder } from '../../src/lib/commentTree'
+import { buildTreeLayout, buildVisibleOrder } from '../../src/lib/commentTree'
 
 interface TestNode {
   id: string
@@ -46,6 +46,20 @@ describe('buildVisibleOrder', () => {
     const comments = [node('a', null), node('a1', 'a'), node('a2', 'a')]
     expect(buildVisibleOrder(comments).map((c) => c.id))
       .toEqual(['a', 'a1', 'a2'])
+  })
+
+  it('derives visual depth and sibling continuation from parent ids', () => {
+    const comments = [
+      node('root', null), node('first', 'root'),
+      node('grandchild', 'first'), node('second', 'root'),
+    ]
+    const rows = buildTreeLayout(comments)
+    expect(rows.map(({ item, depth, isLastSibling }) =>
+      [item.id, depth, isLastSibling])).toEqual([
+      ['root', 0, true], ['first', 1, false],
+      ['grandchild', 2, true], ['second', 1, true],
+    ])
+    expect(rows[2].ancestorContinues).toEqual([false, true])
   })
 
   it('handles multiple top-level threads each with their own replies', () => {

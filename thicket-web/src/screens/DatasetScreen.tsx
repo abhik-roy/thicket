@@ -8,6 +8,7 @@ import {
   type EvidenceSegment, type SegmentStatus, type Theme,
 } from '../api/openCoding'
 import { HeaderActions, type HeaderActionsProps } from '../components/HeaderActions'
+import { BASE_URL } from '../api/client'
 
 interface Props extends HeaderActionsProps { coderId: string; passNo: number; codebookId: string }
 type Scope = 'all' | 'uncoded' | 'uncertain' | `theme:${string}` | `code:${string}`
@@ -106,9 +107,12 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
     setExpanded(null); setDirtySegment(null); setScope(next); setNavigationOpen(false)
   }
   const scopeLabel = scope === 'all' ? 'All data units' : scope === 'uncoded' ? 'Needs coding' : scope === 'uncertain' ? 'Uncertain / revisit' : scope.startsWith('theme:') ? themes.find((item) => `theme:${item.id}` === scope)?.name ?? 'Theme' : codes.find((item) => `code:${item.id}` === scope)?.name ?? 'Code'
+  const exportUrl = `${BASE_URL}/export/segments?${new URLSearchParams({
+    codebook_id: codebookId, coder_id: coderId, pass_no: String(passNo),
+  }).toString()}`
 
   return <main className="app-shell min-h-screen">
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6"><div className="mx-auto flex max-w-[92rem] flex-wrap items-center gap-3"><Link to="/" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} className="btn-secondary inline-flex items-center">← Work queue</Link><div><p className="eyebrow">Inductive analysis</p><h1 className="text-lg font-bold text-slate-900">Evidence dataset</h1></div><div className="ml-auto hidden text-xs text-slate-500 sm:block">{coderId} · Pass {passNo}</div><HeaderActions theme={theme} onToggleTheme={onToggleTheme} onOpenWorkspace={onOpenWorkspace} /></div></header>
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur sm:px-6"><div className="mx-auto flex max-w-[92rem] flex-wrap items-center gap-3"><Link to="/" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} className="btn-secondary inline-flex items-center">← Work queue</Link><div><p className="eyebrow">Inductive analysis</p><h1 className="text-lg font-bold text-slate-900">Evidence dataset</h1></div><div className="ml-auto hidden text-xs text-slate-500 sm:block">{coderId} · Pass {passNo}</div><a className="btn-secondary inline-flex items-center" href={exportUrl} download>Export CSV ↓</a><HeaderActions theme={theme} onToggleTheme={onToggleTheme} onOpenWorkspace={onOpenWorkspace} /></div></header>
     <div className="mx-auto grid max-w-[92rem] items-start gap-5 px-4 py-5 md:grid-cols-[15rem_minmax(0,1fr)] sm:px-6">
       <button type="button" className="surface flex items-center rounded-xl p-3 text-left md:hidden" onClick={() => setNavigationOpen(!navigationOpen)} aria-expanded={navigationOpen}><span className="min-w-0 flex-1"><span className="eyebrow block">Current dataset view</span><span className="font-semibold">{scopeLabel}</span> <span className="text-sm text-slate-500">· {filtered.length} units</span></span><span aria-hidden="true">{navigationOpen ? '▲' : '▼'}</span></button>
       <aside className={`surface rounded-xl p-3 md:sticky md:top-20 ${navigationOpen ? 'block' : 'hidden md:block'}`}>
