@@ -46,4 +46,35 @@ describe('DatasetScreen', () => {
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining(
       'original corpus post will not be deleted'))
   })
+
+  it('combines segments across threads and filters them by thread', async () => {
+    const makeSegment = (id: string, threadId: string, text: string): EvidenceSegment => ({
+      id, item_type: 'comment', item_id: `${threadId}-p1`, thread_id: threadId,
+      coder_id: 'analyst', pass_no: 1, start_offset: 0, end_offset: text.length,
+      selected_text: text, context_text: text, memo: '', status: 'captured',
+      created_at: 'x', updated_at: 'x', author: 'alice', created_utc: 1,
+      permalink: null, codes: [], themes: [],
+    })
+    server.use(
+      http.get('http://localhost:8000/open-coding/segments', () => HttpResponse.json([
+        makeSegment('s1', 'policy-thread', 'Policy evidence'),
+        makeSegment('s2', 'governance-thread', 'Governance evidence'),
+      ])),
+      http.get('http://localhost:8000/codebooks/open/codes', () => HttpResponse.json([])),
+      http.get('http://localhost:8000/open-coding/themes', () => HttpResponse.json([])),
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter>
+      <DatasetScreen coderId="analyst" passNo={1} codebookId="open"
+        theme="light" onToggleTheme={vi.fn()} onOpenWorkspace={vi.fn()} />
+    </MemoryRouter></QueryClientProvider>)
+
+    expect(await screen.findByText('“Policy evidence”')).toBeTruthy()
+    expect(screen.getByText('“Governance evidence”')).toBeTruthy()
+    await userEvent.selectOptions(screen.getByRole('combobox', {
+      name: 'Filter by thread',
+    }), 'policy-thread')
+    expect(screen.getByText('“Policy evidence”')).toBeTruthy()
+    expect(screen.queryByText('“Governance evidence”')).toBeNull()
+  })
 })

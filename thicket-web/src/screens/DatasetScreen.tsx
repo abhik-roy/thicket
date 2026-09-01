@@ -86,14 +86,21 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
   const [dirtySegment, setDirtySegment] = useState<string | null>(null)
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [codesOpen, setCodesOpen] = useState(false)
+  const [threadFilter, setThreadFilter] = useState('all')
   const segments = useMemo(() => segmentsQuery.data ?? [], [segmentsQuery.data]); const codes = useMemo(() => codesQuery.data ?? [], [codesQuery.data]); const themes = useMemo(() => themesQuery.data ?? [], [themesQuery.data])
+  const threads = useMemo(() => Array.from(
+    segments.reduce((counts, segment) => counts.set(
+      segment.thread_id, (counts.get(segment.thread_id) ?? 0) + 1),
+    new Map<string, number>()),
+  ).sort(([left], [right]) => left.localeCompare(right)), [segments])
   const filtered = useMemo(() => { const needle = query.trim().toLocaleLowerCase(); return segments.filter((segment) => {
+    if (threadFilter !== 'all' && segment.thread_id !== threadFilter) return false
     if (scope === 'uncoded' && segment.codes.length > 0) return false
     if (scope === 'uncertain' && segment.status !== 'uncertain') return false
     if (scope.startsWith('theme:') && !segment.themes.some((theme) => `theme:${theme.id}` === scope)) return false
     if (scope.startsWith('code:') && !segment.codes.some((code) => `code:${code.id}` === scope)) return false
     return !needle || [segment.selected_text, segment.context_text, segment.memo, segment.author ?? '', ...segment.codes.map((code) => code.name), ...segment.themes.map((theme) => theme.name)].some((value) => value.toLocaleLowerCase().includes(needle))
-  }) }, [segments, scope, query])
+  }) }, [segments, scope, query, threadFilter])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirtySegment) event.preventDefault() }
     window.addEventListener('beforeunload', warn)
@@ -122,7 +129,7 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
         {codes.length > 0 && <div className="mt-3 border-t border-slate-200 pt-3"><button className="flex w-full items-center px-2 py-1 text-left" onClick={() => setCodesOpen(!codesOpen)} aria-expanded={codesOpen}><span className="eyebrow flex-1">Compare by code</span><span className="text-xs">{codesOpen ? '▲' : '▼'}</span></button>{codesOpen && <nav className="mt-1 max-h-52 space-y-1 overflow-auto">{codes.map((code) => <button key={code.id} onClick={() => chooseScope(`code:${code.id}`)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${scope === `code:${code.id}` ? 'bg-blue-100 font-semibold text-blue-950' : 'text-slate-700 hover:bg-slate-50'}`}><span className="h-2.5 w-2.5 rounded-full" style={{ background: code.color }} /><span className="min-w-0 flex-1 truncate">{code.name}</span><span className="text-xs text-slate-500">{segments.filter((item) => item.codes.some((value) => value.id === code.id)).length}</span></button>)}</nav>}</div>}
       </aside>
       <section className="min-w-0">
-        <div className="surface sticky top-[4.5rem] z-10 mb-4 rounded-xl p-3 shadow-sm"><input className="field w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search evidence, notes, codes, or themes…" /></div>
+        <div className="surface sticky top-[4.5rem] z-10 mb-4 grid gap-3 rounded-xl p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)]"><input className="field w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search evidence, notes, codes, or themes…" /><label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs font-semibold text-slate-600"><span>Thread</span><select className="field min-w-0 text-sm" aria-label="Filter by thread" value={threadFilter} onChange={(event) => { if (!canLeaveEditor()) return; setExpanded(null); setDirtySegment(null); setThreadFilter(event.target.value) }}><option value="all">All threads · {segments.length} units</option>{threads.map(([threadId, count]) => <option key={threadId} value={threadId}>{threadId} · {count} {count === 1 ? 'unit' : 'units'}</option>)}</select></label></div>
         {(segmentsQuery.isError || codesQuery.isError || themesQuery.isError) && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-red-700">The analysis dataset could not be loaded.</p>}{segmentsQuery.isPending && <p className="py-12 text-center text-slate-500">Loading the dataset…</p>}{!segmentsQuery.isPending && filtered.length === 0 && <div className="surface rounded-xl px-6 py-14 text-center"><p className="font-semibold text-slate-800">No data units in this view.</p><p className="mt-1 text-sm text-slate-500">Capture a passage from the corpus or choose another section.</p><Link to="/" className="btn-primary mt-4 inline-flex items-center">Choose a corpus thread →</Link></div>}
         <ol className="space-y-4">{filtered.map((segment) => { const isOpen = expanded === segment.id; const sourceParams = new URLSearchParams({ segment: segment.id, post: segment.item_id, codebook: codebookId, coder: coderId, pass: String(passNo) }); return <li key={segment.id} className="surface w-full rounded-xl p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span className="rounded bg-slate-100 px-2 py-1 font-mono font-semibold text-slate-700">{postLabel(segment)}</span><span className="font-semibold text-slate-700">{segment.author || 'Unknown author'}</span><span>·</span><span>{statusLabels[segment.status]}</span><span className="ml-auto truncate font-mono text-[10px]" title={segment.thread_id}>{segment.thread_id}</span></div>
