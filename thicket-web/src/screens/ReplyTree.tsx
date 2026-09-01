@@ -91,14 +91,16 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
     () => Object.fromEntries(
       codes.filter((c) => c.hotkey).map((c) => [c.hotkey as string, c.id])),
     [codes])
-  const segmentsQuery = useSegments(coderId, passNo, threadId)
+  const segmentsQuery = useSegments(coderId, passNo)
+  const threadSegments = useMemo(() => (segmentsQuery.data ?? []).filter(
+    (segment) => segment.thread_id === threadId), [segmentsQuery.data, threadId])
   const segmentsByItem = useMemo(() => {
-    const result: Record<string, NonNullable<typeof segmentsQuery.data>> = {}
-    for (const segment of segmentsQuery.data ?? []) {
+    const result: Record<string, typeof threadSegments> = {}
+    for (const segment of threadSegments) {
       ;(result[segment.item_id] ??= []).push(segment)
     }
     return result
-  }, [segmentsQuery.data])
+  }, [threadSegments])
 
   const assignmentStatusQuery = useAssignmentStatus(
     coderId, passNo, threadId ? [threadId] : [])

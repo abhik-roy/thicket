@@ -364,10 +364,11 @@ export function OpenCodingWorkbench(props: Props) {
     onClearSelection, onJumpToSource, focusedAppliedCodeIds,
     onToggleFocusedCode, onCollapse } = props
   const [tab, setTab] = useState<Tab>('capture')
-  const segmentsQuery = useSegments(coderId, passNo, threadId)
+  const segmentsQuery = useSegments(coderId, passNo)
   const themesQuery = useThemes(codebookId)
   useEffect(() => { if (selection) setTab('capture') }, [selection])
-  const segments = segmentsQuery.data ?? []
+  const segments = (segmentsQuery.data ?? []).filter(
+    (segment) => segment.thread_id === threadId)
   const themes = themesQuery.data ?? []
   const tabs: [Tab,string,string][] = [
     ['capture','Capture','✦'],['evidence','Dataset',String(segments.length)],
