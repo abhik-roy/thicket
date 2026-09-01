@@ -11,7 +11,7 @@ import { HeaderActions, type HeaderActionsProps } from '../components/HeaderActi
 import { BASE_URL } from '../api/client'
 
 interface Props extends HeaderActionsProps { coderId: string; passNo: number; codebookId: string }
-type Scope = 'all' | 'uncoded' | 'uncertain' | `theme:${string}` | `code:${string}`
+type Scope = 'all' | 'uncoded' | 'uncertain' | `theme:${string}`
 const COLORS = ['#32735f', '#8a5a24', '#526b9a', '#865b88', '#9a4f50', '#49777b']
 const statusLabels: Record<SegmentStatus, string> = { captured: 'Captured', coded: 'Coded', uncertain: 'Uncertain', excluded: 'Excluded', negative_case: 'Negative case' }
 
@@ -87,6 +87,7 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
   const [navigationOpen, setNavigationOpen] = useState(false)
   const [codesOpen, setCodesOpen] = useState(false)
   const [threadFilter, setThreadFilter] = useState('all')
+  const [codeFilters, setCodeFilters] = useState<string[]>([])
   const segments = useMemo(() => segmentsQuery.data ?? [], [segmentsQuery.data]); const codes = useMemo(() => codesQuery.data ?? [], [codesQuery.data]); const themes = useMemo(() => themesQuery.data ?? [], [themesQuery.data])
   const threads = useMemo(() => Array.from(
     segments.reduce((counts, segment) => counts.set(
@@ -98,9 +99,9 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
     if (scope === 'uncoded' && segment.codes.length > 0) return false
     if (scope === 'uncertain' && segment.status !== 'uncertain') return false
     if (scope.startsWith('theme:') && !segment.themes.some((theme) => `theme:${theme.id}` === scope)) return false
-    if (scope.startsWith('code:') && !segment.codes.some((code) => `code:${code.id}` === scope)) return false
+    if (codeFilters.length > 0 && !segment.codes.some((code) => codeFilters.includes(code.id))) return false
     return !needle || [segment.selected_text, segment.context_text, segment.memo, segment.author ?? '', ...segment.codes.map((code) => code.name), ...segment.themes.map((theme) => theme.name)].some((value) => value.toLocaleLowerCase().includes(needle))
-  }) }, [segments, scope, query, threadFilter])
+  }) }, [segments, scope, query, threadFilter, codeFilters])
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirtySegment) event.preventDefault() }
     window.addEventListener('beforeunload', warn)
@@ -112,8 +113,16 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
   function chooseScope(next: Scope) {
     if (!canLeaveEditor()) return
     setExpanded(null); setDirtySegment(null); setScope(next); setNavigationOpen(false)
+    if (next === 'uncoded') setCodeFilters([])
   }
-  const scopeLabel = scope === 'all' ? 'All data units' : scope === 'uncoded' ? 'Needs coding' : scope === 'uncertain' ? 'Uncertain / revisit' : scope.startsWith('theme:') ? themes.find((item) => `theme:${item.id}` === scope)?.name ?? 'Theme' : codes.find((item) => `code:${item.id}` === scope)?.name ?? 'Code'
+  function toggleCodeFilter(codeId: string) {
+    if (!canLeaveEditor()) return
+    setExpanded(null); setDirtySegment(null)
+    if (scope === 'uncoded') setScope('all')
+    setCodeFilters((selected) => selected.includes(codeId)
+      ? selected.filter((id) => id !== codeId) : [...selected, codeId])
+  }
+  const scopeLabel = codeFilters.length > 0 ? `${codeFilters.length} code ${codeFilters.length === 1 ? 'filter' : 'filters'}` : scope === 'all' ? 'All data units' : scope === 'uncoded' ? 'Needs coding' : scope === 'uncertain' ? 'Uncertain / revisit' : themes.find((item) => `theme:${item.id}` === scope)?.name ?? 'Theme'
   const exportUrl = `${BASE_URL}/export/segments?${new URLSearchParams({
     codebook_id: codebookId, coder_id: coderId, pass_no: String(passNo),
   }).toString()}`
@@ -126,7 +135,7 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
         <p className="eyebrow px-2 py-1">Dataset views</p><nav className="mt-1 space-y-1" aria-label="Dataset views">{([['all', 'All data units', segments.length], ['uncoded', 'Needs coding', segments.filter((item) => item.codes.length === 0).length], ['uncertain', 'Uncertain / revisit', segments.filter((item) => item.status === 'uncertain').length]] as const).map(([id, label, count]) => <button key={id} onClick={() => chooseScope(id)} className={`flex w-full items-center rounded-lg px-3 py-2 text-left text-sm ${scope === id ? 'bg-emerald-100 font-semibold text-emerald-950' : 'text-slate-700 hover:bg-slate-50'}`}><span className="flex-1">{label}</span><span className="text-xs tabular-nums text-slate-500">{count}</span></button>)}</nav>
         <div className="my-3 border-t border-slate-200" /><p className="eyebrow px-2 py-1">Sections / themes</p><nav className="mt-1 space-y-1">{themes.map((theme) => <button key={theme.id} onClick={() => chooseScope(`theme:${theme.id}`)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${scope === `theme:${theme.id}` ? 'bg-violet-100 font-semibold text-violet-950' : 'text-slate-700 hover:bg-slate-50'}`}><span className="h-2.5 w-2.5 rounded-full" style={{ background: theme.color }} /><span className="min-w-0 flex-1 truncate">{theme.name}</span><span className="text-xs text-slate-500">{segments.filter((item) => item.themes.some((value) => value.id === theme.id)).length}</span></button>)}{themes.length === 0 && <p className="px-2 py-2 text-xs leading-5 text-slate-500">Themes begin empty and emerge from your coding.</p>}</nav>
         <ThemeCreator codebookId={codebookId} /><div className="my-4 border-t border-slate-200" /><dl className="grid grid-cols-2 gap-2 px-2 text-xs"><div><dt className="text-slate-500">Units</dt><dd className="mt-0.5 text-lg font-bold">{segments.length}</dd></div><div><dt className="text-slate-500">Open codes</dt><dd className="mt-0.5 text-lg font-bold">{codes.length}</dd></div></dl>
-        {codes.length > 0 && <div className="mt-3 border-t border-slate-200 pt-3"><button className="flex w-full items-center px-2 py-1 text-left" onClick={() => setCodesOpen(!codesOpen)} aria-expanded={codesOpen}><span className="eyebrow flex-1">Compare by code</span><span className="text-xs">{codesOpen ? '▲' : '▼'}</span></button>{codesOpen && <nav className="mt-1 max-h-52 space-y-1 overflow-auto">{codes.map((code) => <button key={code.id} onClick={() => chooseScope(`code:${code.id}`)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${scope === `code:${code.id}` ? 'bg-blue-100 font-semibold text-blue-950' : 'text-slate-700 hover:bg-slate-50'}`}><span className="h-2.5 w-2.5 rounded-full" style={{ background: code.color }} /><span className="min-w-0 flex-1 truncate">{code.name}</span><span className="text-xs text-slate-500">{segments.filter((item) => item.codes.some((value) => value.id === code.id)).length}</span></button>)}</nav>}</div>}
+        {codes.length > 0 && <div className="mt-3 border-t border-slate-200 pt-3"><button className="flex w-full items-center px-2 py-1 text-left" onClick={() => setCodesOpen(!codesOpen)} aria-expanded={codesOpen}><span className="eyebrow flex-1">Compare by code</span>{codeFilters.length > 0 && <span className="mr-2 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-950">{codeFilters.length}</span>}<span className="text-xs">{codesOpen ? '▲' : '▼'}</span></button>{codesOpen && <div><p className="px-2 py-1 text-[11px] leading-4 text-slate-500">Select one or more. Results match any selected code.</p>{codeFilters.length > 0 && <button type="button" className="mx-2 mb-1 text-xs font-semibold text-emerald-800 hover:underline" onClick={() => { if (canLeaveEditor()) setCodeFilters([]) }}>Clear code filters</button>}<div className="mt-1 max-h-52 space-y-1 overflow-auto" role="group" aria-label="Filter by codes">{codes.map((code) => { const checked = codeFilters.includes(code.id); return <label key={code.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ${checked ? 'bg-blue-100 font-semibold text-blue-950' : 'text-slate-700 hover:bg-slate-50'}`}><input type="checkbox" checked={checked} onChange={() => toggleCodeFilter(code.id)} /><span className="h-2.5 w-2.5 rounded-full" style={{ background: code.color }} /><span className="min-w-0 flex-1 truncate">{code.name}</span><span className="text-xs text-slate-500">{segments.filter((item) => item.codes.some((value) => value.id === code.id)).length}</span></label> })}</div></div>}</div>}
       </aside>
       <section className="min-w-0">
         <div className="surface sticky top-[4.5rem] z-10 mb-4 grid gap-3 rounded-xl p-3 shadow-sm lg:grid-cols-[minmax(0,1fr)_minmax(14rem,22rem)]"><input className="field w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search evidence, notes, codes, or themes…" /><label className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2 text-xs font-semibold text-slate-600"><span>Thread</span><select className="field min-w-0 text-sm" aria-label="Filter by thread" value={threadFilter} onChange={(event) => { if (!canLeaveEditor()) return; setExpanded(null); setDirtySegment(null); setThreadFilter(event.target.value) }}><option value="all">All threads · {segments.length} units</option>{threads.map(([threadId, count]) => <option key={threadId} value={threadId}>{threadId} · {count} {count === 1 ? 'unit' : 'units'}</option>)}</select></label></div>

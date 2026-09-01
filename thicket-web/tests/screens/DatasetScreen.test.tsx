@@ -48,19 +48,25 @@ describe('DatasetScreen', () => {
   })
 
   it('combines segments across threads and filters them by thread', async () => {
-    const makeSegment = (id: string, threadId: string, text: string): EvidenceSegment => ({
+    const codeA = { id: 'code-a', codebook_id: 'open', parent_id: null,
+      name: 'Policy concern', description: '', color: '#32735f', valence: null,
+      hotkey: null, sort_order: 0 }
+    const codeB = { ...codeA, id: 'code-b', name: 'Governance concern',
+      color: '#526b9a', sort_order: 1 }
+    const makeSegment = (id: string, threadId: string, text: string,
+      code: typeof codeA): EvidenceSegment => ({
       id, item_type: 'comment', item_id: `${threadId}-p1`, thread_id: threadId,
       coder_id: 'analyst', pass_no: 1, start_offset: 0, end_offset: text.length,
       selected_text: text, context_text: text, memo: '', status: 'captured',
       created_at: 'x', updated_at: 'x', author: 'alice', created_utc: 1,
-      permalink: null, codes: [], themes: [],
+      permalink: null, codes: [code], themes: [],
     })
     server.use(
       http.get('http://localhost:8000/open-coding/segments', () => HttpResponse.json([
-        makeSegment('s1', 'policy-thread', 'Policy evidence'),
-        makeSegment('s2', 'governance-thread', 'Governance evidence'),
+        makeSegment('s1', 'policy-thread', 'Policy evidence', codeA),
+        makeSegment('s2', 'governance-thread', 'Governance evidence', codeB),
       ])),
-      http.get('http://localhost:8000/codebooks/open/codes', () => HttpResponse.json([])),
+      http.get('http://localhost:8000/codebooks/open/codes', () => HttpResponse.json([codeA, codeB])),
       http.get('http://localhost:8000/open-coding/themes', () => HttpResponse.json([])),
     )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -76,5 +82,16 @@ describe('DatasetScreen', () => {
     }), 'policy-thread')
     expect(screen.getByText('“Policy evidence”')).toBeTruthy()
     expect(screen.queryByText('“Governance evidence”')).toBeNull()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', {
+      name: 'Filter by thread',
+    }), 'all')
+    await userEvent.click(screen.getByRole('button', { name: /Compare by code/ }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Policy concern/ }))
+    expect(screen.getByText('“Policy evidence”')).toBeTruthy()
+    expect(screen.queryByText('“Governance evidence”')).toBeNull()
+    await userEvent.click(screen.getByRole('checkbox', { name: /Governance concern/ }))
+    expect(screen.getByText('“Policy evidence”')).toBeTruthy()
+    expect(screen.getByText('“Governance evidence”')).toBeTruthy()
   })
 })
