@@ -206,7 +206,7 @@ def _pdf_bytes(rows: list[dict], coder_id: str, pass_no: int) -> bytes:
     doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=16 * mm,
                             leftMargin=16 * mm, topMargin=15 * mm,
                             bottomMargin=15 * mm,
-                            title="Thicket coded evidence")
+                            title="Qualitative Coding Export")
     styles = getSampleStyleSheet()
     title = ParagraphStyle("Title", parent=styles["Title"], fontSize=19,
                            leading=23, textColor=colors.HexColor("#174f3c"),
@@ -222,7 +222,7 @@ def _pdf_bytes(rows: list[dict], coder_id: str, pass_no: int) -> bytes:
     memo = ParagraphStyle("Memo", parent=styles["BodyText"], fontSize=9,
                           leading=13, textColor=colors.HexColor("#47554f"),
                           spaceAfter=7)
-    story: list = [Paragraph("Thicket evidence dataset", title),
+    story: list = [Paragraph("Qualitative Coding Export", title),
                    Paragraph(f"Coder: {escape(coder_id)} &nbsp;·&nbsp; Pass {pass_no} &nbsp;·&nbsp; {len(rows)} data units", meta),
                    Spacer(1, 6 * mm)]
     for row in rows:
