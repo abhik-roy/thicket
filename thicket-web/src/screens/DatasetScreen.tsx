@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { useCodes, type Code } from '../api/comments'
 import { useCreateCode } from '../api/codebooks'
 import {
-  useAddSegmentCode, useCreateTheme, useRemoveSegmentCode, useSegments,
+  useAddSegmentCode, useCreateTheme, useDeleteSegment, useRemoveSegmentCode, useSegments,
   useThemes, useToggleSegmentTheme, useUpdateSegment,
   type EvidenceSegment, type SegmentStatus, type Theme,
 } from '../api/openCoding'
@@ -80,6 +80,7 @@ function ThemeCreator({ codebookId }: { codebookId: string }) {
 
 export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleTheme, onOpenWorkspace }: Props) {
   const segmentsQuery = useSegments(coderId, passNo); const codesQuery = useCodes(codebookId); const themesQuery = useThemes(codebookId)
+  const deleteSegment = useDeleteSegment()
   const [query, setQuery] = useState(''); const [scope, setScope] = useState<Scope>('all'); const [expanded, setExpanded] = useState<string | null>(null)
   const [dirtySegment, setDirtySegment] = useState<string | null>(null)
   const [navigationOpen, setNavigationOpen] = useState(false)
@@ -124,7 +125,7 @@ export function DatasetScreen({ coderId, passNo, codebookId, theme, onToggleThem
           <blockquote className="mt-4 border-l-4 border-amber-400 bg-amber-50/70 px-4 py-3 text-[15px] leading-7 text-slate-800">“{segment.selected_text}”</blockquote>{segment.memo && !isOpen && <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600"><span className="font-semibold text-slate-800">Memo:</span> {segment.memo}</p>}
           <div className="mt-3 flex flex-wrap gap-1.5">{segment.themes.map((theme) => <span key={theme.id} className="rounded-full border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: theme.color, color: theme.color }}>{theme.name}</span>)}{segment.codes.map((code) => <span key={code.id} className="rounded-full px-2.5 py-1 text-xs font-semibold text-white" style={{ background: code.color }}>{code.name}</span>)}{segment.codes.length === 0 && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs italic text-slate-500">Not coded yet</span>}</div>
           {isOpen && <UnitEditor segment={segment} codes={codes} themes={themes} codebookId={codebookId} onDirtyChange={(dirty) => setDirtySegment(dirty ? segment.id : null)} />}
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4"><button className={isOpen ? 'btn-primary' : 'btn-secondary'} onClick={() => { if (isOpen && !canLeaveEditor()) return; setDirtySegment(null); setExpanded(isOpen ? null : segment.id) }}>{isOpen ? 'Close coding' : 'Code / organize'}</button><Link className="btn-secondary inline-flex items-center" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} to={`/thread/${encodeURIComponent(segment.thread_id)}?${sourceParams.toString()}`}>Highlighted context →</Link><Link className="btn-secondary inline-flex items-center" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} to={`/thread/${encodeURIComponent(segment.thread_id)}?codebook=${encodeURIComponent(codebookId)}&coder=${encodeURIComponent(coderId)}&pass=${passNo}`}>Corpus thread</Link>{segment.permalink && <a className="ml-auto text-xs font-semibold text-emerald-800 hover:underline" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} href={segment.permalink} target="_blank" rel="noreferrer">Original source ↗</a>}</div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4"><button className={isOpen ? 'btn-primary' : 'btn-secondary'} onClick={() => { if (isOpen && !canLeaveEditor()) return; setDirtySegment(null); setExpanded(isOpen ? null : segment.id) }}>{isOpen ? 'Close coding' : 'Code / organize'}</button><Link className="btn-secondary inline-flex items-center" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} to={`/thread/${encodeURIComponent(segment.thread_id)}?${sourceParams.toString()}`}>Highlighted context →</Link><Link className="btn-secondary inline-flex items-center" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} to={`/thread/${encodeURIComponent(segment.thread_id)}?codebook=${encodeURIComponent(codebookId)}&coder=${encodeURIComponent(coderId)}&pass=${passNo}`}>Corpus thread</Link><button type="button" className="btn-secondary text-red-700" disabled={deleteSegment.isPending} title="Remove this captured selection; the corpus post is not deleted" onClick={() => { if (window.confirm('Remove this captured selection from the dataset? Its code and theme links will also be removed. The original corpus post will not be deleted.')) deleteSegment.mutate(segment.id, { onSuccess: () => { setExpanded(null); setDirtySegment(null) } }) }}>{deleteSegment.isPending ? 'Removing…' : 'Remove selection'}</button>{segment.permalink && <a className="ml-auto text-xs font-semibold text-emerald-800 hover:underline" onClick={(event) => { if (!canLeaveEditor()) event.preventDefault() }} href={segment.permalink} target="_blank" rel="noreferrer">Original source ↗</a>}</div>
         </li> })}</ol>
       </section>
     </div>
