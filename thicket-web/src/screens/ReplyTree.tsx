@@ -35,6 +35,42 @@ export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onTogg
   const [selection, setSelection] = useState<SelectionDraft | null>(null)
   const [workbenchOpen, setWorkbenchOpen] = useState(true)
 
+  useEffect(() => {
+    function captureCompletedSelection() {
+      const browserSelection = window.getSelection()
+      if (!browserSelection || browserSelection.isCollapsed ||
+          browserSelection.rangeCount === 0) return
+      const range = browserSelection.getRangeAt(0)
+      const startElement = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer as Element : range.startContainer.parentElement
+      const endElement = range.endContainer.nodeType === Node.ELEMENT_NODE
+        ? range.endContainer as Element : range.endContainer.parentElement
+      const sourceBody = startElement?.closest<HTMLElement>('[data-source-body]')
+      if (!sourceBody || !endElement || !sourceBody.contains(endElement)) return
+
+      const before = document.createRange()
+      before.selectNodeContents(sourceBody)
+      before.setEnd(range.startContainer, range.startOffset)
+      const startOffset = before.toString().length
+      const selectedText = range.toString()
+      const itemId = sourceBody.dataset.sourceBody
+      if (!itemId || !selectedText.trim()) return
+      setSelection({
+        itemId,
+        startOffset,
+        endOffset: startOffset + selectedText.length,
+        selectedText,
+      })
+    }
+
+    document.addEventListener('pointerup', captureCompletedSelection)
+    document.addEventListener('keyup', captureCompletedSelection)
+    return () => {
+      document.removeEventListener('pointerup', captureCompletedSelection)
+      document.removeEventListener('keyup', captureCompletedSelection)
+    }
+  }, [])
+
   const commentsQuery = useComments(threadId)
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = commentsQuery
   const allComments = useMemo(

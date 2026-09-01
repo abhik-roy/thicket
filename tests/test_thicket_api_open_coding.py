@@ -177,3 +177,64 @@ def test_theme_rejects_cross_codebook_membership(client):
     response = http.put(
         f"/open-coding/themes/{theme['id']}/codes/other-code")
     assert response.status_code == 422
+
+
+def test_merge_code_moves_and_deduplicates_all_references(client):
+    http, labels_path = client
+    target = http.post("/codebooks/open/codes", json={
+        "name": "Transparent assistance", "description": "Retained code",
+        "color": "#123456", "hotkey": None,
+    }).json()
+    source_segment = http.post(
+        "/open-coding/capture", json=capture_payload()).json()
+    target_segment = http.post("/open-coding/capture", json=capture_payload(
+        code_ids=[target["id"]])).json()
+    theme = http.post("/open-coding/themes?codebook_id=open", json={
+        "name": "Accountability", "memo": "", "color": "#654321",
+        "status": "candidate",
+    }).json()
+    assert http.put(
+        f"/open-coding/themes/{theme['id']}/codes/disclosure").status_code == 201
+    assert http.put(
+        f"/open-coding/themes/{theme['id']}/codes/{target['id']}").status_code == 201
+    for code_id in ("disclosure", target["id"]):
+        assert http.post("/labels", json={
+            "item_type": "comment", "item_id": "post-1", "code_id": code_id,
+            "coder_id": "analyst", "pass_no": 1,
+        }).status_code == 201
+
+    response = http.post("/codes/disclosure/merge", json={
+        "target_code_id": target["id"],
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == target["id"]
+    with sqlite3.connect(labels_path) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM codes WHERE id='disclosure'").fetchone()[0] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) FROM labels WHERE code_id=?", (target["id"],)
+        ).fetchone()[0] == 1
+        assert conn.execute(
+            "SELECT COUNT(*) FROM segment_codes WHERE code_id=?", (target["id"],)
+        ).fetchone()[0] == 2
+        assert conn.execute(
+            "SELECT COUNT(*) FROM theme_codes WHERE code_id=?", (target["id"],)
+        ).fetchone()[0] == 1
+    listed = http.get(
+        "/open-coding/segments?coder_id=analyst&pass_no=1").json()
+    by_id = {segment["id"]: segment for segment in listed}
+    assert by_id[source_segment["id"]]["codes"][0]["id"] == target["id"]
+    assert by_id[target_segment["id"]]["codes"][0]["id"] == target["id"]
+
+
+def test_merge_rejects_codes_from_different_codebooks(client):
+    http, labels_path = client
+    with sqlite3.connect(labels_path) as conn:
+        conn.execute("INSERT INTO codebooks VALUES ('other','Other','',1,'x')")
+        conn.execute("INSERT INTO codes VALUES "
+                     "('other-code','other',NULL,'Other','','#111111',NULL,NULL,0)")
+        conn.commit()
+    response = http.post("/codes/disclosure/merge", json={
+        "target_code_id": "other-code",
+    })
+    assert response.status_code == 422

@@ -10,6 +10,7 @@ Thicket is free software licensed under the [GNU General Public License v3.0](LI
 - Presents long discussions as a chronological reader or reply tree.
 - Captures exact passages as evidence with source offsets and context.
 - Creates open codes in place while reading.
+- Renames or merges codes across all linked labels, evidence, and themes.
 - Organizes codes and evidence into candidate themes.
 - Supports deductive whole-post coding with reusable codebooks.
 - Keeps each coder and coding pass separate for blind or repeat coding.

@@ -1,6 +1,7 @@
 """Codebooks, codes, and labels -- with blindness enforced in SQL."""
 from __future__ import annotations
 
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -84,6 +85,10 @@ class CodeIn(BaseModel):
     hotkey: str | None = Field(default=None, pattern=r"^[1-9]$")
 
 
+class CodeMergeIn(BaseModel):
+    target_code_id: str = Field(min_length=1)
+
+
 @router.post("/codebooks/{codebook_id}/codes", status_code=201)
 def create_code(codebook_id: str, body: CodeIn,
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict:
@@ -119,6 +124,11 @@ def update_code(code_id: str, body: CodeIn,
         "SELECT codebook_id FROM codes WHERE id=?", (code_id,)).fetchone()
     if not existing:
         raise HTTPException(404, "code not found")
+    if conn.execute(
+            "SELECT 1 FROM codes WHERE codebook_id=? AND id<>? "
+            "AND name=? COLLATE NOCASE",
+            (existing[0], code_id, body.name.strip())).fetchone():
+        raise HTTPException(409, "a code with this name already exists")
     if body.hotkey and conn.execute(
             "SELECT 1 FROM codes WHERE codebook_id=? AND hotkey=? AND id<>?",
             (existing[0], body.hotkey, code_id)).fetchone():
@@ -131,6 +141,72 @@ def update_code(code_id: str, body: CodeIn,
     conn.commit()
     cur = conn.execute("SELECT * FROM codes WHERE id=?", (code_id,))
     return _row_to_dict(cur, cur.fetchone())
+
+
+@router.post("/codes/{source_code_id}/merge")
+def merge_code(source_code_id: str, body: CodeMergeIn,
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """Merge a source code into a retained target across every coding layer."""
+    if source_code_id == body.target_code_id:
+        raise HTTPException(400, "source and target codes must be different")
+    rows = conn.execute(
+        "SELECT id,codebook_id,parent_id FROM codes WHERE id IN (?,?)",
+        (source_code_id, body.target_code_id)).fetchall()
+    by_id = {row[0]: row for row in rows}
+    if source_code_id not in by_id or body.target_code_id not in by_id:
+        raise HTTPException(404, "source or target code not found")
+    if by_id[source_code_id][1] != by_id[body.target_code_id][1]:
+        raise HTTPException(422, "codes must belong to the same codebook")
+
+    try:
+        duplicate_labels = conn.execute(
+            "DELETE FROM labels AS source WHERE source.code_id=? AND EXISTS ("
+            "SELECT 1 FROM labels AS target WHERE target.code_id=? "
+            "AND target.item_type=source.item_type "
+            "AND target.item_id=source.item_id "
+            "AND target.coder_id=source.coder_id "
+            "AND target.pass_no=source.pass_no)",
+            (source_code_id, body.target_code_id)).rowcount
+        moved_labels = conn.execute(
+            "UPDATE labels SET code_id=? WHERE code_id=?",
+            (body.target_code_id, source_code_id)).rowcount
+
+        moved_segments = conn.execute(
+            "INSERT OR IGNORE INTO segment_codes (segment_id,code_id,created_at) "
+            "SELECT segment_id,?,created_at FROM segment_codes WHERE code_id=?",
+            (body.target_code_id, source_code_id)).rowcount
+        conn.execute("DELETE FROM segment_codes WHERE code_id=?", (source_code_id,))
+
+        moved_themes = conn.execute(
+            "INSERT OR IGNORE INTO theme_codes (theme_id,code_id,sort_order,created_at) "
+            "SELECT theme_id,?,sort_order,created_at FROM theme_codes WHERE code_id=?",
+            (body.target_code_id, source_code_id)).rowcount
+        conn.execute("DELETE FROM theme_codes WHERE code_id=?", (source_code_id,))
+        if by_id[body.target_code_id][2] == source_code_id:
+            conn.execute("UPDATE codes SET parent_id=? WHERE id=?",
+                         (by_id[source_code_id][2], body.target_code_id))
+        conn.execute("UPDATE codes SET parent_id=? WHERE parent_id=? AND id<>?",
+                     (body.target_code_id, source_code_id, body.target_code_id))
+        conn.execute("DELETE FROM codes WHERE id=?", (source_code_id,))
+        timestamp = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO analytic_audit_log VALUES (?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), None, "merge", "code", source_code_id,
+             json.dumps({"target_code_id": body.target_code_id}), timestamp))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    cur = conn.execute("SELECT * FROM codes WHERE id=?", (body.target_code_id,))
+    result = _row_to_dict(cur, cur.fetchone())
+    result["merge_summary"] = {
+        "moved_labels": moved_labels,
+        "deduplicated_labels": duplicate_labels,
+        "moved_segment_links": moved_segments,
+        "moved_theme_links": moved_themes,
+    }
+    return result
 
 
 @router.delete("/codes/{code_id}", status_code=204)

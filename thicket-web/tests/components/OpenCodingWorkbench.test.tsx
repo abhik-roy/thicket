@@ -12,6 +12,7 @@ const code = {
   name: 'Requesting disclosure', description: '', color: '#32735f',
   valence: null, hotkey: null, sort_order: 0,
 }
+const otherCode = { ...code, id: 'c2', name: 'Transparent assistance', color: '#316a91' }
 
 function setup(selection: SelectionDraft | null = {
   itemId: 'post-1', startOffset: 3, endOffset: 18,
@@ -20,6 +21,8 @@ function setup(selection: SelectionDraft | null = {
   let segments: EvidenceSegment[] = []
   let themes: Theme[] = []
   let captured: Record<string, unknown> | null = null
+  let renamed: Record<string, unknown> | null = null
+  let merged: Record<string, unknown> | null = null
   server.use(
     http.get('http://localhost:8000/open-coding/segments', () =>
       HttpResponse.json(segments)),
@@ -51,16 +54,28 @@ function setup(selection: SelectionDraft | null = {
       themes = [{ ...themes[0], codes: [{ ...code, segment_count: 1 }] }]
       return HttpResponse.json(themes[0], { status: 201 })
     }),
+    http.put('http://localhost:8000/codes/c1', async ({ request }) => {
+      renamed = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ...code, ...renamed })
+    }),
+    http.post('http://localhost:8000/codes/c1/merge', async ({ request }) => {
+      merged = await request.json() as Record<string, unknown>
+      return HttpResponse.json(otherCode)
+    }),
   )
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(<QueryClientProvider client={client}>
     <OpenCodingWorkbench coderId="analyst" passNo={1} codebookId="open"
-      threadId="t1" codes={[code]} selection={selection}
+      threadId="t1" codes={[code, otherCode]} selection={selection}
       onClearSelection={vi.fn()} onJumpToSource={vi.fn()}
       focusedAppliedCodeIds={[]} onToggleFocusedCode={vi.fn()}
       onCollapse={vi.fn()} />
   </QueryClientProvider>)
-  return { getCaptured: () => captured }
+  return {
+    getCaptured: () => captured,
+    getRenamed: () => renamed,
+    getMerged: () => merged,
+  }
 }
 
 describe('OpenCodingWorkbench', () => {
@@ -95,5 +110,23 @@ describe('OpenCodingWorkbench', () => {
     await userEvent.click(screen.getByText('Group codes under this theme'))
     await userEvent.click(screen.getByRole('checkbox', { name: 'Requesting disclosure' }))
     await waitFor(() => expect(screen.getByText(/Requesting disclosure · 1/)).toBeTruthy())
+  })
+
+  it('renames and merges codes from the constant-comparison panel', async () => {
+    const state = setup(null)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await userEvent.click(await screen.findByRole('button', { name: /Codes/ }))
+    await userEvent.click(screen.getByRole('button', { name: /Requesting disclosure/ }))
+    const name = screen.getByLabelText('Code name')
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Requesting transparent disclosure')
+    await userEvent.click(screen.getByRole('button', { name: 'Save code changes' }))
+    await waitFor(() => expect(state.getRenamed()).not.toBeNull())
+    expect(state.getRenamed()?.name).toBe('Requesting transparent disclosure')
+
+    await userEvent.selectOptions(screen.getByLabelText('Merge this code into'), 'c2')
+    await userEvent.click(screen.getByRole('button', { name: 'Merge and remove this code' }))
+    await waitFor(() => expect(state.getMerged()).not.toBeNull())
+    expect(state.getMerged()?.target_code_id).toBe('c2')
   })
 })

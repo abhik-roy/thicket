@@ -74,6 +74,23 @@ export function useUpdateCode(codebookId: string) {
   })
 }
 
+export function useMergeCode(codebookId: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sourceId, targetId }: { sourceId: string; targetId: string }) =>
+      apiFetch<Code>(`/codes/${sourceId}/merge`, {
+        method: 'POST',
+        body: JSON.stringify({ target_code_id: targetId }),
+      }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['codes', codebookId] })
+      client.invalidateQueries({ queryKey: ['open-coding'] })
+      client.invalidateQueries({ queryKey: ['label-details'] })
+      client.invalidateQueries({ queryKey: ['codebooks'] })
+    },
+  })
+}
+
 export function useDeleteCode(codebookId: string) {
   const client = useQueryClient()
   return useMutation({

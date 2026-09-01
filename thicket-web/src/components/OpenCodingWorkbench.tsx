@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import type { Code } from '../api/comments'
-import { useCreateCode } from '../api/codebooks'
+import { useCreateCode, useMergeCode, useUpdateCode } from '../api/codebooks'
 import {
   useCaptureSegment, useCreateTheme, useDeleteSegment, useDeleteTheme,
   useSegments, useThemes, useToggleThemeCode, useUpdateTheme,
@@ -228,10 +228,23 @@ function CodesWorkspace({ codes, segments, codebookId }: {
   codes: Code[]; segments: EvidenceSegment[]; codebookId: string
 }) {
   const create = useCreateCode(codebookId)
+  const update = useUpdateCode(codebookId)
+  const merge = useMergeCode(codebookId)
   const [name, setName] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [editColor, setEditColor] = useState(COLORS[0])
+  const [mergeTarget, setMergeTarget] = useState('')
   const active = codes.find((code) => code.id === selected)
   const evidence = segments.filter((segment) => segment.codes.some((code) => code.id === selected))
+  useEffect(() => {
+    if (!active) return
+    setEditName(active.name)
+    setEditDescription(active.description ?? '')
+    setEditColor(active.color)
+    setMergeTarget('')
+  }, [active])
   function submit(event: FormEvent) {
     event.preventDefault()
     create.mutate({ name: name.trim(), description: '', color: COLORS[codes.length % COLORS.length], hotkey: null },
@@ -257,12 +270,44 @@ function CodesWorkspace({ codes, segments, codebookId }: {
       </div>
       {active && <section className="mt-4 border-t border-slate-200 pt-4">
         <span className="eyebrow">Constant comparison</span>
-        <h3 className="mt-1 font-semibold">{active.name}</h3>
-        {active.description && <p className="mt-1 text-xs text-slate-500">{active.description}</p>}
+        <div className="mt-2 grid gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          <label className="grid gap-1 text-xs font-semibold text-slate-600">Code name
+            <input className="field text-sm font-normal" value={editName} onChange={(event) => setEditName(event.target.value)} />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold text-slate-600">Working definition
+            <input className="field text-sm font-normal" value={editDescription} onChange={(event) => setEditDescription(event.target.value)} />
+          </label>
+          <div className="flex gap-2">
+            <input aria-label="Code color" type="color" className="field h-10 w-12 p-1" value={editColor} onChange={(event) => setEditColor(event.target.value)} />
+            <button className="btn-primary flex-1 text-xs" disabled={!editName.trim() || update.isPending}
+              onClick={() => update.mutate({ id: active.id, name: editName.trim(), description: editDescription.trim(), color: editColor, hotkey: active.hotkey })}>
+              {update.isPending ? 'Saving…' : 'Save code changes'}
+            </button>
+          </div>
+          {update.isError && <p role="alert" className="text-xs text-red-700">Could not rename this code: {update.error.message}</p>}
+        </div>
         <div className="mt-2 space-y-2">{evidence.map((segment) =>
           <blockquote key={segment.id} className="rounded-lg bg-white p-2 text-xs leading-5">“{segment.selected_text}”</blockquote>)}
           {evidence.length === 0 && <p className="text-xs italic text-slate-500">No segment-level evidence yet.</p>}
         </div>
+        {codes.length > 1 && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+          <label className="grid gap-1 text-xs font-semibold text-amber-900">Merge this code into
+            <select className="field text-sm font-normal" value={mergeTarget} onChange={(event) => setMergeTarget(event.target.value)}>
+              <option value="">Choose the code to keep…</option>
+              {codes.filter((code) => code.id !== active.id).map((code) => <option key={code.id} value={code.id}>{code.name}</option>)}
+            </select>
+          </label>
+          <button className="btn-secondary mt-2 w-full text-xs text-amber-900" disabled={!mergeTarget || merge.isPending}
+            onClick={() => {
+              const target = codes.find((code) => code.id === mergeTarget)
+              if (target && confirm(`Merge “${active.name}” into “${target.name}”? All labels, evidence segments, and theme links will move to “${target.name}”.`)) {
+                merge.mutate({ sourceId: active.id, targetId: target.id }, { onSuccess: () => setSelected(target.id) })
+              }
+            }}>
+            {merge.isPending ? 'Merging…' : 'Merge and remove this code'}
+          </button>
+          {merge.isError && <p role="alert" className="mt-2 text-xs text-red-700">Could not merge these codes: {merge.error.message}</p>}
+        </div>}
       </section>}
     </div>
   )
