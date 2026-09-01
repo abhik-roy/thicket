@@ -1,6 +1,7 @@
 import type { Code, Comment } from '../api/comments'
 import type { EvidenceSegment, SelectionDraft } from '../api/openCoding'
 import { TreeConnectors } from './TreeConnectors'
+import { EvidenceHighlight } from './EvidenceHighlight'
 
 export interface CommentNodeProps {
   comment: Comment
@@ -65,20 +66,19 @@ export function CommentNode({
       const text = comment.body.slice(start, end)
       if (covering.length === 0) return text
       const color = covering[0].codes[0]?.color ?? '#d99a2b'
-      const codeNames = Array.from(new Set(
-        covering.flatMap((segment) => segment.codes.map((code) => code.name))))
-      const evidenceCodes = codeNames.length > 0
-        ? codeNames.join(' · ') : 'Uncoded evidence'
+      const evidenceCodes = Array.from(new Map(
+        covering.flatMap((segment) => segment.codes)
+          .map((code) => [code.id, code])).values())
       const isTarget = covering.some((segment) => segment.id === targetSegmentId)
       return (
-        <mark
+        <EvidenceHighlight
           key={`${start}-${end}`}
-          data-evidence-codes={evidenceCodes}
+          codes={evidenceCodes}
           className={`evidence-highlight rounded-sm px-0.5 text-inherit ${isTarget ? 'target-evidence' : ''}`}
           style={{ backgroundColor: isTarget ? '#fde68a' : `${color}30`, boxShadow: `inset 0 -2px ${color}` }}
         >
           {text}
-        </mark>
+        </EvidenceHighlight>
       )
     })
   }

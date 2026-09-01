@@ -71,7 +71,7 @@ describe('CommentNode', () => {
     expect(onFocus).toHaveBeenCalled()
   })
 
-  it('exposes segment codes in the highlight hover bubble', () => {
+  it('shows segment codes as colored pills in the highlight hover bubble', async () => {
     render(<CommentNode comment={COMMENT} appliedCodeIds={[]}
       codesById={CODES_BY_ID} focused={false} onFocus={vi.fn()}
       segments={[{
@@ -85,5 +85,10 @@ describe('CommentNode', () => {
     const highlight = document.querySelector('[data-evidence-codes]')
     expect(highlight?.getAttribute('data-evidence-codes')).toBe('Emotional support')
     expect(highlight?.textContent).toBe('really')
+    await userEvent.hover(highlight as Element)
+    const tooltip = screen.getByRole('tooltip')
+    expect(tooltip).toHaveTextContent('Codes for this selection')
+    expect(screen.getByText('Emotional support', { selector: '[role="tooltip"] span' }))
+      .toHaveStyle({ backgroundColor: CODES_BY_ID.emotional.color })
   })
 })

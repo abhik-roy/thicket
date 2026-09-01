@@ -2,6 +2,7 @@ import type { Code, Comment } from '../api/comments'
 import type { EvidenceSegment } from '../api/openCoding'
 import { buildTreeLayout } from '../lib/commentTree'
 import { TreeConnectors } from './TreeConnectors'
+import { EvidenceHighlight } from './EvidenceHighlight'
 
 export interface ConversationMapProps {
   comments: Comment[]
@@ -15,12 +16,6 @@ export interface ConversationMapProps {
 function firstLine(body: string): string {
   const line = body.split(/\r?\n/, 1)[0].trim()
   return line || '(empty comment)'
-}
-
-function evidenceNames(segment: EvidenceSegment) {
-  return segment.codes.length > 0
-    ? segment.codes.map((code) => code.name).join(' · ')
-    : 'Uncoded evidence'
 }
 
 export function ConversationMap({
@@ -60,12 +55,12 @@ export function ConversationMap({
                     {firstLine(comment.body)}
                   </span>
                   {segments.length > 0 && <span className="mt-2 grid gap-1.5">
-                    {segments.slice(0, 2).map((segment) => <mark key={segment.id}
-                      data-evidence-codes={evidenceNames(segment)}
+                    {segments.slice(0, 2).map((segment) => <EvidenceHighlight key={segment.id}
+                      codes={segment.codes}
                       className="evidence-highlight block rounded-md border-l-2 px-2 py-1 text-xs font-normal leading-5 text-slate-700"
                       style={{ backgroundColor: `${segment.codes[0]?.color ?? '#d99a2b'}20`, borderColor: segment.codes[0]?.color ?? '#d99a2b' }}>
                       “{segment.selected_text}”
-                    </mark>)}
+                    </EvidenceHighlight>)}
                     {segments.length > 2 && <span className="text-[11px] font-medium text-amber-700">+{segments.length - 2} more saved selections</span>}
                   </span>}
                   <span className="mt-1 block text-[11px] text-slate-500">

@@ -29,26 +29,26 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .target-evidence { animation: evidence-pulse 1.5s ease-out 2; outline: 3px solid #d97706; outline-offset: 2px; }
 .evidence-highlight { position: relative; }
 .evidence-highlight:hover { z-index: 30; }
-.evidence-highlight:hover::after {
-  position: absolute;
-  bottom: calc(100% + .45rem);
-  left: 50%;
-  z-index: 40;
-  width: max-content;
-  max-width: min(24rem, 72vw);
-  transform: translateX(-50%);
-  border-radius: .65rem;
-  background: #0f172a;
-  box-shadow: 0 8px 24px rgb(15 23 42 / .22);
-  color: white;
-  content: attr(data-evidence-codes);
-  font-size: .72rem;
-  font-weight: 600;
-  line-height: 1.35;
-  padding: .45rem .65rem;
+.evidence-tooltip {
+  position: fixed; z-index: 80; width: min(26rem, calc(100vw - 1.5rem));
+  border: 1px solid var(--line); border-radius: .9rem;
+  background: var(--surface); box-shadow: 0 12px 36px rgb(25 42 34 / .22);
+  color: var(--ink); padding: .85rem .9rem;
   pointer-events: none;
-  text-align: center;
-  white-space: normal;
+}
+.evidence-tooltip p {
+  margin: 0 0 .55rem; color: var(--muted); font-size: .7rem;
+  font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+}
+.evidence-tooltip div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.evidence-tooltip span {
+  border-radius: 999px; color: white; padding: .38rem .7rem;
+  font-size: .78rem; font-weight: 700; line-height: 1.25;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .16);
+}
+.evidence-tooltip .evidence-tooltip-uncoded {
+  background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
 }
 @keyframes evidence-pulse { 50% { outline-color: #fbbf24; background: #fef3c7; } }
 @media (prefers-reduced-motion: reduce) { .target-evidence { animation: none; } }
@@ -115,47 +115,58 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* Persistent application dark mode. Semantic surfaces retain their hierarchy
    while code/theme colors and evidence highlighting remain unchanged. */
-[data-theme="dark"] body { background: #0f1714; color: #e5ece8; }
-[data-theme="dark"] .app-shell { background: #111a17; color: #e5ece8; }
+[data-theme="dark"] {
+  --ink: #dce4e0; --muted: #9eaaa4; --line: #46534e;
+  --surface: #29332f; --surface-soft: #242d2a;
+  --forest: #397b63; --forest-hover: #458b70; --sage: #34483f;
+}
+[data-theme="dark"] body { background: #1c2421; color: var(--ink); }
+[data-theme="dark"] .app-shell { background: #202825; color: var(--ink); }
 [data-theme="dark"] .surface,
 [data-theme="dark"] .bg-white,
-[data-theme="dark"] header { background-color: #18231f !important; border-color: #34433d !important; }
+[data-theme="dark"] header { background-color: #29332f !important; border-color: var(--line) !important; }
 [data-theme="dark"] .bg-slate-50,
 [data-theme="dark"] .bg-slate-50\/95,
 [data-theme="dark"] .bg-slate-100,
-[data-theme="dark"] .bg-slate-100\/70 { background-color: #131d1a !important; }
+[data-theme="dark"] .bg-slate-100\/70 { background-color: #222b28 !important; }
+[data-theme="dark"] .hover\:bg-white:hover { background-color: #34413c !important; }
+[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #303b37 !important; }
 [data-theme="dark"] .field {
-  background: #0f1815; border-color: #45564f; color: #edf3f0;
+  background: #222b28; border-color: #53615b; color: #e2e9e5;
 }
-[data-theme="dark"] .field::placeholder { color: #83938c; }
-[data-theme="dark"] .field:hover { border-color: #65776f; }
-[data-theme="dark"] .field:focus { border-color: #77a991; box-shadow: 0 0 0 3px #243d33; }
+[data-theme="dark"] .field::placeholder { color: #929e98; }
+[data-theme="dark"] .field:hover { border-color: #718079; }
+[data-theme="dark"] .field:focus { border-color: #79aa94; box-shadow: 0 0 0 3px #354a41; }
 [data-theme="dark"] .btn-secondary {
-  background: #1b2823; border-color: #485a52; color: #edf3f0;
+  background: #313d38; border-color: #56645e; color: #dfe7e3;
 }
-[data-theme="dark"] .btn-secondary:hover { background: #26362f; }
+[data-theme="dark"] .btn-secondary:hover { background: #3a4943; }
 [data-theme="dark"] .text-slate-950,
-[data-theme="dark"] .text-slate-900,
-[data-theme="dark"] .text-slate-800,
-[data-theme="dark"] .text-slate-700 { color: #e6eeea !important; }
-[data-theme="dark"] .text-slate-600 { color: #c2cec8 !important; }
+[data-theme="dark"] .text-slate-900 { color: #e3e9e6 !important; }
+[data-theme="dark"] .text-slate-800 { color: #d8e0dc !important; }
+[data-theme="dark"] .text-slate-700 { color: #cad4cf !important; }
+[data-theme="dark"] .text-slate-600 { color: #b4c0ba !important; }
 [data-theme="dark"] .text-slate-500,
-[data-theme="dark"] .text-slate-400 { color: #93a49c !important; }
+[data-theme="dark"] .text-slate-400 { color: #98a69f !important; }
 [data-theme="dark"] .border-slate-100,
 [data-theme="dark"] .border-slate-200,
-[data-theme="dark"] .border-slate-300 { border-color: #34433d !important; }
-[data-theme="dark"] .bg-amber-50\/70 { background-color: #292419 !important; }
-[data-theme="dark"] .bg-emerald-100 { background-color: #214b3b !important; }
+[data-theme="dark"] .border-slate-300 { border-color: var(--line) !important; }
+[data-theme="dark"] .bg-amber-50\/70 { background-color: #3a3428 !important; }
+[data-theme="dark"] .bg-emerald-100 { background-color: #315747 !important; }
 [data-theme="dark"] .text-emerald-950,
 [data-theme="dark"] .text-emerald-900,
 [data-theme="dark"] .text-emerald-800 { color: #b8ead3 !important; }
-[data-theme="dark"] .bg-violet-100 { background-color: #3a304b !important; }
+[data-theme="dark"] .bg-violet-100 { background-color: #494057 !important; }
 [data-theme="dark"] .text-violet-950 { color: #eadffc !important; }
-[data-theme="dark"] .bg-blue-100 { background-color: #273f5d !important; }
+[data-theme="dark"] .bg-blue-100 { background-color: #354b63 !important; }
 [data-theme="dark"] .text-blue-950 { color: #d8e9ff !important; }
-[data-theme="dark"] .bg-red-50 { background-color: #3b2022 !important; }
+[data-theme="dark"] .bg-red-50 { background-color: #4b3031 !important; }
 [data-theme="dark"] .text-red-700 { color: #ffb4b4 !important; }
+[data-theme="dark"] .text-amber-700,
+[data-theme="dark"] .text-amber-800 { color: #e5bd7b !important; }
+[data-theme="dark"] .text-orange-700 { color: #edbd8d !important; }
 [data-theme="dark"] .shadow-sm,
 [data-theme="dark"] .shadow-md,
-[data-theme="dark"] .shadow-lg { --tw-shadow-color: rgb(0 0 0 / .4); }
-[data-theme="dark"] .kbd { background: #18231f; border-color: #506159; color: #bdc9c3; }
+[data-theme="dark"] .shadow-lg { --tw-shadow-color: rgb(8 14 11 / .24); }
+[data-theme="dark"] .kbd { background: #303b37; border-color: #596760; color: #c3cec8; }
+[data-theme="dark"] .evidence-tooltip { box-shadow: 0 14px 40px rgb(5 10 8 / .3); }
