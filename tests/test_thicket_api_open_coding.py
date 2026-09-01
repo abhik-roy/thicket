@@ -238,3 +238,48 @@ def test_merge_rejects_codes_from_different_codebooks(client):
         "target_code_id": "other-code",
     })
     assert response.status_code == 422
+
+
+def test_split_code_moves_selected_segments_and_inherits_themes(client):
+    http, labels_path = client
+    first = http.post("/open-coding/capture", json=capture_payload()).json()
+    second = http.post("/open-coding/capture", json=capture_payload()).json()
+    theme = http.post("/open-coding/themes?codebook_id=open", json={
+        "name": "Accountability", "memo": "", "color": "#654321",
+        "status": "candidate",
+    }).json()
+    assert http.put(
+        f"/open-coding/themes/{theme['id']}/codes/disclosure").status_code == 201
+
+    response = http.post("/codes/disclosure/split", json={
+        "name": "Disclosure burden", "description": "A narrower concept",
+        "color": "#123456", "segment_ids": [first["id"]],
+    })
+    assert response.status_code == 201, response.text
+    new_code = response.json()
+    assert new_code["split_summary"]["moved_segment_links"] == 1
+    with sqlite3.connect(labels_path) as conn:
+        assert conn.execute(
+            "SELECT code_id FROM segment_codes WHERE segment_id=?",
+            (first["id"],)).fetchone()[0] == new_code["id"]
+        assert conn.execute(
+            "SELECT code_id FROM segment_codes WHERE segment_id=?",
+            (second["id"],)).fetchone()[0] == "disclosure"
+        assert conn.execute(
+            "SELECT COUNT(*) FROM theme_codes WHERE theme_id=? AND code_id=?",
+            (theme["id"], new_code["id"])).fetchone()[0] == 1
+
+
+def test_split_code_rejects_segment_without_source_code(client):
+    http, _ = client
+    target = http.post("/codebooks/open/codes", json={
+        "name": "Other", "description": "", "color": "#123456",
+        "hotkey": None,
+    }).json()
+    segment = http.post("/open-coding/capture", json=capture_payload(
+        code_ids=[target["id"]])).json()
+    response = http.post("/codes/disclosure/split", json={
+        "name": "Invalid split", "description": "", "color": "#654321",
+        "segment_ids": [segment["id"]],
+    })
+    assert response.status_code == 422

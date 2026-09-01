@@ -90,6 +90,13 @@ class CodeMergeIn(BaseModel):
     target_code_id: str = Field(min_length=1)
 
 
+class CodeSplitIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field(default="", max_length=1000)
+    color: str = Field(pattern=r"^#[0-9a-fA-F]{6}$")
+    segment_ids: list[str] = Field(min_length=1, max_length=10000)
+
+
 @router.post("/codebooks/{codebook_id}/codes", status_code=201)
 def create_code(codebook_id: str, body: CodeIn,
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict:
@@ -206,6 +213,75 @@ def merge_code(source_code_id: str, body: CodeMergeIn,
         "deduplicated_labels": duplicate_labels,
         "moved_segment_links": moved_segments,
         "moved_theme_links": moved_themes,
+    }
+    return result
+
+
+@router.post("/codes/{source_code_id}/split", status_code=201)
+def split_code(source_code_id: str, body: CodeSplitIn,
+               conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """Create a sibling code and move reviewed evidence links onto it."""
+    source = conn.execute(
+        "SELECT codebook_id,parent_id FROM codes WHERE id=?",
+        (source_code_id,)).fetchone()
+    if not source:
+        raise HTTPException(404, "source code not found")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "code name cannot be blank")
+    if conn.execute(
+            "SELECT 1 FROM codes WHERE codebook_id=? AND name=? COLLATE NOCASE",
+            (source[0], name)).fetchone():
+        raise HTTPException(409, "a code with this name already exists")
+    segment_ids = list(dict.fromkeys(body.segment_ids))
+    placeholders = ",".join("?" * len(segment_ids))
+    linked = conn.execute(
+        f"SELECT segment_id FROM segment_codes WHERE code_id=? "
+        f"AND segment_id IN ({placeholders})",
+        [source_code_id, *segment_ids]).fetchall()
+    if len(linked) != len(segment_ids):
+        raise HTTPException(
+            422, "every selected segment must currently have the source code")
+
+    code_id = str(uuid.uuid4())
+    timestamp = datetime.now(timezone.utc).isoformat()
+    sort_order = conn.execute(
+        "SELECT COALESCE(MAX(sort_order),-1)+1 FROM codes WHERE codebook_id=?",
+        (source[0],)).fetchone()[0]
+    try:
+        conn.execute(
+            "INSERT INTO codes (id,codebook_id,parent_id,name,description,color,"
+            "valence,hotkey,sort_order) VALUES (?,?,?,?,?,?,NULL,NULL,?)",
+            (code_id, source[0], source[1], name, body.description.strip(),
+             body.color, sort_order))
+        conn.executemany(
+            "INSERT INTO segment_codes (segment_id,code_id,created_at) "
+            "VALUES (?,?,?)",
+            [(segment_id, code_id, timestamp) for segment_id in segment_ids])
+        conn.execute(
+            f"DELETE FROM segment_codes WHERE code_id=? "
+            f"AND segment_id IN ({placeholders})",
+            [source_code_id, *segment_ids])
+        conn.execute(
+            "INSERT INTO theme_codes (theme_id,code_id,sort_order,created_at) "
+            "SELECT theme_id,?,sort_order,? FROM theme_codes WHERE code_id=?",
+            (code_id, timestamp, source_code_id))
+        conn.execute(
+            "INSERT INTO analytic_audit_log VALUES (?,?,?,?,?,?,?)",
+            (str(uuid.uuid4()), None, "split", "code", source_code_id,
+             json.dumps({"new_code_id": code_id,
+                         "segment_ids": segment_ids}), timestamp))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    cur = conn.execute("SELECT * FROM codes WHERE id=?", (code_id,))
+    result = _row_to_dict(cur, cur.fetchone())
+    result["split_summary"] = {
+        "moved_segment_links": len(segment_ids),
+        "whole_post_labels_left_on_source": conn.execute(
+            "SELECT COUNT(*) FROM labels WHERE code_id=?",
+            (source_code_id,)).fetchone()[0],
     }
     return result
 

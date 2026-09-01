@@ -37,9 +37,12 @@ describe('DatasetScreen', () => {
     </MemoryRouter></QueryClientProvider>)
 
     expect(await screen.findByText('“Evidence”')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /Export CSV/ })).toHaveAttribute(
+    await userEvent.click(screen.getByText('Export ▾'))
+    expect(screen.getByRole('link', { name: 'CSV data' })).toHaveAttribute(
       'href', expect.stringContaining(
         '/export/segments?codebook_id=open&coder_id=analyst&pass_no=1'))
+    expect(screen.getByRole('link', { name: 'PDF card report' })).toHaveAttribute(
+      'href', expect.stringContaining('format=pdf'))
     await userEvent.click(screen.getByRole('button', { name: 'Remove selection' }))
     await waitFor(() => expect(deleted).toBe(true))
     expect(await screen.findByText('No data units in this view.')).toBeTruthy()

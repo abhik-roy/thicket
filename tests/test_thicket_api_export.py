@@ -92,3 +92,13 @@ def test_export_segments_csv_includes_source_and_analysis(client):
     assert rows[0]["codes"] == "include"
     assert rows[0]["author"] == "Comment author"
     assert rows[0]["memo"] == "analytic memo"
+
+
+def test_export_segments_pdf_is_a_styled_download(client):
+    resp = client.get(
+        "/export/segments?codebook_id=cb&coder_id=a&pass_no=1&format=pdf")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content.startswith(b"%PDF-")
+    assert 'filename="thicket-segments-a-pass-1.pdf"' in resp.headers[
+        "content-disposition"]

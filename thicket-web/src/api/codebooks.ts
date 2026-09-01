@@ -91,6 +91,25 @@ export function useMergeCode(codebookId: string) {
   })
 }
 
+export function useSplitCode(codebookId: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ sourceId, name, description, color, segmentIds }: {
+      sourceId: string; name: string; description: string; color: string;
+      segmentIds: string[]
+    }) => apiFetch<Code>(`/codes/${sourceId}/split`, {
+      method: 'POST', body: JSON.stringify({
+        name, description, color, segment_ids: segmentIds,
+      }),
+    }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['codes', codebookId] })
+      client.invalidateQueries({ queryKey: ['open-coding'] })
+      client.invalidateQueries({ queryKey: ['codebooks'] })
+    },
+  })
+}
+
 export function useDeleteCode(codebookId: string) {
   const client = useQueryClient()
   return useMutation({
