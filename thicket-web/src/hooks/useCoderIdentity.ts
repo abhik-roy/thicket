@@ -8,6 +8,14 @@ export interface CoderIdentity {
 const STORAGE_KEY = 'thicket:coder-identity'
 
 function readStored(): CoderIdentity | null {
+  const params = new URLSearchParams(window.location.search)
+  const requestedCoder = params.get('coder')
+  const requestedPass = Number(params.get('pass') ?? '1')
+  if (requestedCoder && (requestedPass === 1 || requestedPass === 2)) {
+    const requested = { coderId: requestedCoder, passNo: requestedPass }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(requested))
+    return requested
+  }
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return null
   try {

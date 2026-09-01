@@ -24,7 +24,7 @@ export function ThreadModal({
       <div className={`surface relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl shadow-2xl transition-all ${expanded ? 'max-w-[96vw]' : 'max-w-4xl'}`}>
         <div className="flex items-center border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">r/{thread.subreddit}</span>
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-800">{thread.subreddit}</span>
             <span>{new Date(thread.created_utc * 1000).toISOString().slice(0, 10)}</span>
             <span className="text-slate-300">•</span>
             <span>{codedByMe ? 'Completed by you' : 'Not yet coded'}</span>
@@ -53,7 +53,7 @@ export function ThreadModal({
         <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600">
           <div><b>{thread.score}</b> score</div>
           <div>
-            <b>{thread.num_comments}</b> on Reddit ·{' '}
+            <b>{thread.num_comments}</b> reported at source ·{' '}
             <b>{thread.n_comments_fetched}</b> fetched
           </div>
           <div><b>u/{thread.author}</b> author</div>

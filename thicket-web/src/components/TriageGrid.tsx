@@ -137,7 +137,7 @@ export function TriageGrid({
               }}
             >
               <span aria-label={codedStatus[thread.id] ? 'Done' : 'Not done'} className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${codedStatus[thread.id] ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-400'}`}>{codedStatus[thread.id] ? '✓' : '·'}</span>
-              <span className="truncate font-medium text-slate-600">r/{thread.subreddit}</span>
+              <span className="truncate font-medium text-slate-600">{thread.subreddit}</span>
               <span className="truncate font-medium text-slate-900">{thread.title}</span>
               <span className="text-right tabular-nums text-slate-500">
                 {new Date(thread.created_utc * 1000).getUTCFullYear()}
@@ -148,7 +148,7 @@ export function TriageGrid({
                 ) : (
                   <span
                     className="text-xs text-gray-400"
-                    title={`${thread.num_comments} on Reddit, none scraped yet`}
+                    title={`${thread.num_comments} reported at source, none imported yet`}
                   >
                     no comments
                   </span>

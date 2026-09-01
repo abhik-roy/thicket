@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import {
   useCodes, useComments, useCreateLabel, useDeleteLabel,
   useLabelDetailsForPages, useMarkThreadDone, useUnmarkThreadDone,
@@ -9,22 +9,31 @@ import { useAssignmentStatus } from '../api/threads'
 import { buildVisibleOrder } from '../lib/commentTree'
 import { useCommentTreeNav } from '../hooks/useCommentTreeNav'
 import { CommentNode } from '../components/CommentNode'
-import { CodePalette } from '../components/CodePalette'
 import { ConversationMap } from '../components/ConversationMap'
 import { CommentDetailModal } from '../components/CommentDetailModal'
+import { OpenCodingWorkbench } from '../components/OpenCodingWorkbench'
+import { useSegments, type SelectionDraft } from '../api/openCoding'
+import { HeaderActions, type HeaderActionsProps } from '../components/HeaderActions'
 
-export interface ReplyTreeProps {
+export interface ReplyTreeProps extends Partial<HeaderActionsProps> {
   coderId: string
   passNo: number
   codebookId: string
 }
 
-export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
+export function ReplyTree({ coderId, passNo, codebookId, theme = 'light', onToggleTheme = () => {}, onOpenWorkspace = () => {} }: ReplyTreeProps) {
   const { threadId = '' } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const sourceParams = new URLSearchParams(location.search)
+  const targetPostId = sourceParams.get('post')
+  const targetSegmentId = sourceParams.get('segment')
   const [showOnlyCoded, setShowOnlyCoded] = useState(false)
-  const [viewMode, setViewMode] = useState<'map' | 'detail'>('map')
+  const [viewMode, setViewMode] = useState<'map' | 'detail'>('detail')
+  const [orderMode, setOrderMode] = useState<'timeline' | 'replies'>('timeline')
   const [openCommentId, setOpenCommentId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<SelectionDraft | null>(null)
+  const [workbenchOpen, setWorkbenchOpen] = useState(true)
 
   const commentsQuery = useComments(threadId)
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = commentsQuery
@@ -46,13 +55,25 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
     () => Object.fromEntries(
       codes.filter((c) => c.hotkey).map((c) => [c.hotkey as string, c.id])),
     [codes])
+  const segmentsQuery = useSegments(coderId, passNo, threadId)
+  const segmentsByItem = useMemo(() => {
+    const result: Record<string, NonNullable<typeof segmentsQuery.data>> = {}
+    for (const segment of segmentsQuery.data ?? []) {
+      ;(result[segment.item_id] ??= []).push(segment)
+    }
+    return result
+  }, [segmentsQuery.data])
 
   const assignmentStatusQuery = useAssignmentStatus(
     coderId, passNo, threadId ? [threadId] : [])
   const alreadyDone = assignmentStatusQuery.data?.[threadId] ?? false
 
-  const visibleOrder = useMemo(
-    () => buildVisibleOrder(allComments), [allComments])
+  const visibleOrder = useMemo(() => (
+    orderMode === 'timeline'
+      ? [...allComments].sort((a, b) =>
+          a.created_utc - b.created_utc || a.id.localeCompare(b.id))
+      : buildVisibleOrder(allComments)
+  ), [allComments, orderMode])
   const displayedComments = useMemo(() => (
     showOnlyCoded
       ? visibleOrder.filter((c) => (labelDetails[c.id] ?? []).length > 0)
@@ -129,9 +150,22 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
     isFetchingNextPage, fetchNextPage,
   ])
 
+  useEffect(() => {
+    if (!targetPostId || commentsQuery.isPending) return
+    const index = displayedComments.findIndex((comment) => comment.id === targetPostId)
+    if (index >= 0) {
+      setViewMode('detail')
+      setFocusedIndex(index)
+      requestAnimationFrame(() => rowVirtualizer.scrollToIndex(index, { align: 'center' }))
+    } else if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+  }, [targetPostId, displayedComments, commentsQuery.isPending, hasNextPage,
+    isFetchingNextPage, fetchNextPage, rowVirtualizer, setFocusedIndex])
+
   const focusedComment = displayedComments[focusedIndex]
   const focusedAppliedCodeIds = focusedComment
-    ? (labelDetails[focusedComment.id] ?? []).map((l) => l.code_id) : []
+    ? (labelDetails[focusedComment.id] ?? []).map((label) => label.code_id) : []
   const openComment = openCommentId
     ? displayedComments.find((comment) => comment.id === openCommentId)
     : undefined
@@ -140,6 +174,7 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
     <main className="app-shell flex h-screen flex-col">
       <header className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-5 py-3 text-sm shadow-sm">
         <Link to="/" className="btn-secondary inline-flex items-center">← Work queue</Link>
+        <Link to={`/dataset?codebook=${encodeURIComponent(codebookId)}&coder=${encodeURIComponent(coderId)}&pass=${passNo}`} className="btn-secondary inline-flex items-center">Dataset</Link>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-800">Reply coding</p>
           <p className="mt-0.5 font-mono text-xs text-slate-500">{threadId}</p>
@@ -165,6 +200,24 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
             Full text
           </button>
         </div>
+        <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Post order">
+          <button
+            type="button"
+            aria-pressed={orderMode === 'timeline'}
+            onClick={() => setOrderMode('timeline')}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${orderMode === 'timeline' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}
+          >
+            Original order
+          </button>
+          <button
+            type="button"
+            aria-pressed={orderMode === 'replies'}
+            onClick={() => setOrderMode('replies')}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${orderMode === 'replies' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'}`}
+          >
+            Reply tree
+          </button>
+        </div>
         <label className="ml-auto flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700">
           <input
             type="checkbox"
@@ -183,6 +236,7 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
             ? 'Saving…'
             : alreadyDone ? 'Unmark done (Enter)' : 'Mark done (Enter)'}
         </button>
+        <HeaderActions theme={theme} onToggleTheme={onToggleTheme} onOpenWorkspace={onOpenWorkspace} />
       </header>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <section ref={parentRef} className="min-w-0 flex-1 overflow-auto bg-slate-100/70 py-2" data-testid="comment-tree">
@@ -246,6 +300,10 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
                     codesById={codesById}
                     focused={virtualRow.index === focusedIndex}
                     onFocus={() => setFocusedIndex(virtualRow.index)}
+                    segments={segmentsByItem[comment.id] ?? []}
+                    onTextSelect={setSelection}
+                    indentReplies={orderMode === 'replies'}
+                    targetSegmentId={targetSegmentId}
                   />
                 </div>
               )
@@ -253,14 +311,30 @@ export function ReplyTree({ coderId, passNo, codebookId }: ReplyTreeProps) {
           </div>
           )}
         </section>
-        {!openComment && <CodePalette
+        {!openComment && workbenchOpen && <OpenCodingWorkbench
+          coderId={coderId}
+          passNo={passNo}
+          codebookId={codebookId}
+          threadId={threadId}
           codes={codes}
-          appliedCodeIds={focusedAppliedCodeIds}
-          onToggleCode={(codeId) => toggleCodeOnComment(focusedIndex, codeId)}
-          disabled={createLabel.isPending || deleteLabel.isPending}
-          isLoading={codesQuery.isPending}
-          isError={codesQuery.isError}
+          selection={selection}
+          onClearSelection={() => setSelection(null)}
+          onJumpToSource={(itemId) => {
+            const index = displayedComments.findIndex((comment) => comment.id === itemId)
+            if (index >= 0) {
+              setFocusedIndex(index)
+              rowVirtualizer.scrollToIndex(index, { align: 'center' })
+            }
+          }}
+          focusedAppliedCodeIds={focusedAppliedCodeIds}
+          onToggleFocusedCode={(codeId) => toggleCodeOnComment(focusedIndex, codeId)}
+          onCollapse={() => setWorkbenchOpen(false)}
         />}
+        {!openComment && !workbenchOpen && (
+          <button className="open-workbench-launch btn-primary" onClick={() => setWorkbenchOpen(true)}>
+            Open coding workspace ↑
+          </button>
+        )}
       </div>
       {openComment && (
         <CommentDetailModal

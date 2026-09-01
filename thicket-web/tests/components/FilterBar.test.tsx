@@ -27,7 +27,7 @@ describe('FilterBar', () => {
   it('reports subreddit changes', async () => {
     const props = renderFilterBar()
     await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: 'Subreddit' }),
+      screen.getByRole('combobox', { name: 'Community' }),
       'ExperiencedDevs',
     )
     expect(props.onSubredditChange).toHaveBeenCalledWith('ExperiencedDevs')

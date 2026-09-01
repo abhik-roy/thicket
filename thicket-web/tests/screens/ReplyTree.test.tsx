@@ -40,6 +40,10 @@ function setup() {
       HttpResponse.json(labelDetails)),
     http.get('http://localhost:8000/coders/a/assignment-status', () =>
       HttpResponse.json({ t1: false })),
+    http.get('http://localhost:8000/open-coding/segments', () =>
+      HttpResponse.json([])),
+    http.get('http://localhost:8000/open-coding/themes', () =>
+      HttpResponse.json([])),
     http.post('http://localhost:8000/labels', async ({ request }) => {
       const body = await request.json() as { item_id: string; code_id: string }
       const labelId = `label-${body.item_id}-${body.code_id}`
@@ -81,8 +85,10 @@ function setup() {
 }
 
 describe('ReplyTree', () => {
-  it('defaults to a compact color-coded tree and opens full text in a modal', async () => {
+  it('defaults to chronological full text and can open the compact tree map', async () => {
     setup()
+    expect(await screen.findByTestId('comment-c1')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Tree map' }))
     const node = await screen.findByTestId('map-node-c1')
     expect(screen.getByTestId('conversation-map')).toBeTruthy()
     expect(node.textContent).toContain('top level comment')

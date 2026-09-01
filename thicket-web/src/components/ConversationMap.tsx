@@ -19,7 +19,7 @@ export function ConversationMap({
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-5" data-testid="conversation-map">
       <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-        <span>Each branch follows the Reddit reply structure.</span>
+        <span>Each branch follows the source conversation's reply structure.</span>
         <span className="ml-auto">Node colors show applied codes.</span>
       </div>
       <div className="grid gap-2">

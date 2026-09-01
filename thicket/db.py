@@ -71,6 +71,74 @@ CREATE TABLE IF NOT EXISTS adjudications (
   resolved_at TEXT NOT NULL,
   PRIMARY KEY (item_type, item_id, code_id)
 );
+
+CREATE TABLE IF NOT EXISTS evidence_segments (
+  id            TEXT PRIMARY KEY,
+  item_type     TEXT NOT NULL CHECK (item_type IN ('comment', 'thread')),
+  item_id       TEXT NOT NULL,
+  thread_id     TEXT NOT NULL,
+  coder_id      TEXT NOT NULL REFERENCES coders(id),
+  pass_no       INTEGER NOT NULL DEFAULT 1,
+  start_offset  INTEGER NOT NULL CHECK (start_offset >= 0),
+  end_offset    INTEGER NOT NULL CHECK (end_offset > start_offset),
+  selected_text TEXT NOT NULL,
+  context_text  TEXT NOT NULL,
+  memo          TEXT,
+  status        TEXT NOT NULL DEFAULT 'captured'
+                CHECK (status IN ('captured','coded','uncertain','excluded','negative_case')),
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_segments_source
+  ON evidence_segments(thread_id, item_id, start_offset);
+CREATE INDEX IF NOT EXISTS idx_segments_coder
+  ON evidence_segments(coder_id, pass_no, created_at);
+
+CREATE TABLE IF NOT EXISTS segment_codes (
+  segment_id TEXT NOT NULL REFERENCES evidence_segments(id) ON DELETE CASCADE,
+  code_id    TEXT NOT NULL REFERENCES codes(id),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (segment_id, code_id)
+);
+
+CREATE TABLE IF NOT EXISTS themes (
+  id          TEXT PRIMARY KEY,
+  codebook_id TEXT NOT NULL REFERENCES codebooks(id),
+  name        TEXT NOT NULL,
+  memo        TEXT,
+  color       TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'candidate'
+              CHECK (status IN ('candidate','reviewing','retained','rejected')),
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_theme_name
+  ON themes(codebook_id, name COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS theme_codes (
+  theme_id  TEXT NOT NULL REFERENCES themes(id) ON DELETE CASCADE,
+  code_id   TEXT NOT NULL REFERENCES codes(id),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (theme_id, code_id)
+);
+
+CREATE TABLE IF NOT EXISTS segment_themes (
+  segment_id TEXT NOT NULL REFERENCES evidence_segments(id) ON DELETE CASCADE,
+  theme_id   TEXT NOT NULL REFERENCES themes(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (segment_id, theme_id)
+);
+
+CREATE TABLE IF NOT EXISTS analytic_audit_log (
+  id          TEXT PRIMARY KEY,
+  coder_id    TEXT,
+  action      TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id   TEXT NOT NULL,
+  detail      TEXT,
+  created_at  TEXT NOT NULL
+);
 """
 
 

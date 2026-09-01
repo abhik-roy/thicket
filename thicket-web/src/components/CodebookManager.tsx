@@ -71,6 +71,13 @@ function CodeRow({ code, codebookId }: { code: Code; codebookId: string }) {
           Delete
         </button>
       </div>
+      <textarea
+        aria-label={`Code description ${code.name}`}
+        value={draft.description}
+        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        placeholder="Inclusion, exclusion, and boundary guidance"
+        className="field col-span-full min-h-16 text-sm"
+      />
       {(update.isError || remove.isError) && (
         <p role="alert" className="col-span-full text-xs text-red-700">
           Could not save this change. Codes already used in labels cannot be
@@ -150,7 +157,9 @@ export function CodebookManager({
             onChange={(e) => onSelect(e.target.value)}
           >
             {(codebooks.data ?? []).map((book) => (
-              <option key={book.id} value={book.id}>{book.name}</option>
+              <option key={book.id} value={book.id}>
+                {book.name} ({book.label_count} applied labels)
+              </option>
             ))}
           </select>
           <button

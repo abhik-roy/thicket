@@ -8,6 +8,7 @@ export interface Codebook {
   description: string
   version: number
   created_at: string
+  label_count: number
 }
 
 export interface CodeInput {

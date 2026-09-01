@@ -51,7 +51,14 @@ export function CodePalette({
             }}
           >
             <span className={`kbd ${applied ? 'border-white/40 bg-white/15 text-white' : ''}`}>{code.hotkey}</span>
-            <span>{code.name}</span>
+            <span>
+              <span className="block">{code.name}</span>
+              {code.description && (
+                <span className={`mt-0.5 block text-xs font-normal leading-4 ${applied ? 'text-white/80' : 'text-slate-500'}`}>
+                  {code.description}
+                </span>
+              )}
+            </span>
           </button>
         )
       })}

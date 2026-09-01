@@ -14,7 +14,9 @@ from starlette.responses import FileResponse
 
 from thicket import corpus, db
 from thicket.config import Settings
-from thicket.routers import export, imports, items, labels, reliability, workspace
+from thicket.routers import (
+    export, imports, items, labels, open_coding, reliability, workspace,
+)
 from thicket.seed_default import seed_default
 
 
@@ -48,6 +50,7 @@ app.include_router(reliability.router)
 app.include_router(export.router)
 app.include_router(imports.router)
 app.include_router(workspace.router)
+app.include_router(open_coding.router)
 
 
 @app.get("/health")

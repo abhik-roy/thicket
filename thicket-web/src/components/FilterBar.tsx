@@ -33,7 +33,7 @@ export function FilterBar({
       <label className="grid gap-1 text-xs font-semibold text-slate-600">
         Community
         <select
-          aria-label="Subreddit"
+          aria-label="Community"
           value={subreddit}
           onChange={(e) => onSubredditChange(e.target.value)}
           className="field w-40 text-sm font-normal"
@@ -44,7 +44,7 @@ export function FilterBar({
           </option>
           {communities.map((community) => (
             <option key={community.name} value={community.name}>
-              r/{community.name} ({community.thread_count})
+              {community.name} ({community.thread_count})
             </option>
           ))}
         </select>
