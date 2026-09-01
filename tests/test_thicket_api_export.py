@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from thicket.deps import get_conn
 from thicket.main import app
 from thicket import corpus, db
+from thicket.routers.export import _code_frequencies
 
 
 @pytest.fixture
@@ -118,3 +119,14 @@ def test_segment_exports_follow_active_filters(client):
     assert rows_for("thread_id=another-thread") == []
     assert rows_for("search=does-not-exist") == []
     assert rows_for("view=uncoded") == []
+
+
+def test_pdf_code_frequencies_only_include_used_codes():
+    rows = [
+        {"codes": "Alpha | Beta", "code_colors": "#111111 | #222222"},
+        {"codes": "Alpha", "code_colors": "#111111"},
+        {"codes": "", "code_colors": ""},
+    ]
+    assert _code_frequencies(rows) == [
+        ("Alpha", "#111111", 2), ("Beta", "#222222", 1),
+    ]

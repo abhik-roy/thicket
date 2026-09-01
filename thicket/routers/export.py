@@ -19,7 +19,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
-    Flowable, HRFlowable, Paragraph, SimpleDocTemplate, Spacer,
+    Flowable, HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
 )
 from xml.sax.saxutils import escape, quoteattr
 
@@ -201,6 +201,22 @@ class _Pills(Flowable):
             x += width + 5
 
 
+def _code_frequencies(rows: list[dict]) -> list[tuple[str, str, int]]:
+    counts: dict[str, list] = {}
+    for row in rows:
+        names = row["codes"].split(" | ") if row["codes"] else []
+        code_colors = (row["code_colors"].split(" | ")
+                       if row["code_colors"] else [])
+        for name, color in zip(names, code_colors):
+            if name not in counts:
+                counts[name] = [color, 0]
+            counts[name][1] += 1
+    return sorted(
+        [(name, values[0], values[1]) for name, values in counts.items()],
+        key=lambda value: (-value[2], value[0].casefold()),
+    )
+
+
 def _pdf_bytes(rows: list[dict], coder_id: str, pass_no: int) -> bytes:
     output = io.BytesIO()
     doc = SimpleDocTemplate(output, pagesize=A4, rightMargin=16 * mm,
@@ -250,6 +266,17 @@ def _pdf_bytes(rows: list[dict], coder_id: str, pass_no: int) -> bytes:
         story.extend([Spacer(1, 3 * mm), HRFlowable(
             width="100%", thickness=.6, color=colors.HexColor("#dce2dd")),
             Spacer(1, 4 * mm)])
+    frequencies = _code_frequencies(rows)
+    if frequencies:
+        story.extend([
+            PageBreak(), Paragraph("Code frequencies", title),
+            Paragraph(
+                "Number of exported data units carrying each code. "
+                "Codes absent from this filtered export are omitted.", meta),
+            Spacer(1, 5 * mm),
+            _Pills([(f"{name} · {count}", color)
+                    for name, color, count in frequencies]),
+        ])
     doc.build(story)
     return output.getvalue()
 
